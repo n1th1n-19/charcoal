@@ -94,7 +94,8 @@ export default function App() {
       el.scrollLeft = left;
       return;
     }
-    animate(el, { scrollLeft: left, duration: 900, ease: "inOutCubic" });
+    el.dataset.gliding = "";
+    animate(el, { scrollLeft: left, duration: 900, ease: "inOutCubic", onComplete: () => delete el.dataset.gliding });
   }, []);
 
   function clipToSeam() {
@@ -104,13 +105,18 @@ export default function App() {
     canvas.style.clipPath = `inset(0 ${Math.max(0, r.right - seamX())}px 0 0)`;
   }
 
-  // The sheet is continuous: wheel slides it on x, and stations fade to erased ghosts behind you.
+  // One gesture moves one station, so a screen never rests between two. Stations leaving fade to ghosts.
   useEffect(() => {
     const el = scroller.current!;
+    let wheelLock = 0;
     const onWheel = (e: WheelEvent) => {
       if ((e.target as Element).closest("[data-xscroll]")) return;
       e.preventDefault();
-      el.scrollLeft += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      const now = performance.now();
+      if (now < wheelLock || Math.abs(delta) < 8) return;
+      wheelLock = now + 1000;
+      goTo(Math.round(el.scrollLeft / el.clientWidth) + Math.sign(delta));
     };
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as Element).closest("input, select, [role=slider]")) return;
@@ -393,7 +399,7 @@ export default function App() {
     ["CLAHE strength", "clahe", 0, 6, 0.1],
   ];
 
-  const station = "station relative flex h-full shrink-0 w-dvw lg:w-[78vw] transition-opacity duration-200 p-4 md:p-10";
+  const station = "station relative flex h-full shrink-0 w-dvw transition-opacity duration-200 p-4 md:p-10";
 
   return (
     <div
@@ -458,7 +464,7 @@ export default function App() {
         </section>
 
         <section aria-label="Kiln" className={`${station} flex-col gap-4 md:flex-row-reverse md:items-center`}>
-          <div className="min-h-0 flex-1 self-stretch"><Kiln temp={temp} /></div>
+          <div className="min-h-0 flex-1 self-stretch pt-[16vh]"><Kiln temp={temp} /></div>
           <div className="flex shrink-0 flex-col gap-2 md:w-64">
             <p data-mono className="text-title font-bold tabular-nums">{temp} C</p>
             {download && <p role="status" className="text-label text-soft">{download}</p>}

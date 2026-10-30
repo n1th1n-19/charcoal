@@ -64,13 +64,14 @@ body {
   scrollbar-width: none;
   overscroll-behavior-x: contain;
 }
-@media (max-width: 599px) {
-  .sheet {
-    scroll-snap-type: x proximity;
-  }
-  .station {
-    scroll-snap-align: start;
-  }
+.sheet {
+  scroll-snap-type: x mandatory;
+}
+.sheet[data-gliding] {
+  scroll-snap-type: none;
+}
+.station {
+  scroll-snap-align: start;
 }
 
 .rough {
