@@ -20,10 +20,15 @@ export default function Terms() {
         <li>Only use images you own or have permission to use.</li>
         <li>You are responsible for what you make and how you use it.</li>
       </ul>
+      <h2>Third-party services</h2>
+      <p>
+        {NAME} relies on Vercel for hosting, visit counts and speed measurement, and on Hugging Face to host the
+        background removal model. Their own terms apply to those services. The privacy policy explains what they receive.
+      </p>
       <h2>Acceptable use</h2>
       <p>
         Do not use {NAME} for anything unlawful, or to harm others, including art that harasses a person or infringes
-        their rights. Do not attempt to disrupt the site.
+        their rights. Do not attempt to disrupt the site or overload its services.
       </p>
       <h2>No warranty</h2>
       <p>{NAME} is provided as is, without warranties of any kind. Results, including background removal, may be imperfect.</p>
@@ -39,6 +44,7 @@ export default function Terms() {
         <li>ONNX Runtime Web, MIT</li>
         <li>anime.js, MIT</li>
         <li>Next.js and React, MIT</li>
+        <li>Vercel Analytics, MIT, and Vercel Speed Insights, Apache-2.0</li>
         <li>Recursive typeface, SIL Open Font License</li>
         <li>
           Charcoal photo by Dati Bendo, European Commission, © European Union, 2026,{" "}

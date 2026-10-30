@@ -9,6 +9,8 @@ Charcoal includes or loads the following work. Each stays under its own license.
 | anime.js | Animation | MIT, Copyright Julian Garnier | https://github.com/juliangarnier/anime |
 | Next.js | Framework | MIT, Copyright Vercel, Inc. | https://github.com/vercel/next.js |
 | React | Framework | MIT, Copyright Meta Platforms, Inc. and affiliates | https://github.com/facebook/react |
+| Vercel Analytics | Anonymous visit counts | MIT, Copyright Vercel, Inc. | https://github.com/vercel/analytics |
+| Vercel Speed Insights | Anonymous page speed measurements | Apache-2.0, Copyright Vercel, Inc. | https://github.com/vercel/speed-insights |
 | Recursive | Typeface | SIL OFL 1.1 | https://github.com/arrowtype/recursive |
 
 ## Images
