@@ -74,7 +74,6 @@ export default function App() {
   const [past, setPast] = useState<Settings[]>([]);
   const [future, setFuture] = useState<Settings[]>([]);
   const [output, setOutput] = useState<Output | null>(null);
-  const [reveal, setReveal] = useState(true);
   const [smaller, setSmaller] = useState(false);
   const [pngScale, setPngScale] = useState(2);
   const [copied, setCopied] = useState(false);
@@ -370,9 +369,14 @@ export default function App() {
   }, [undo, redo]);
 
   const exportName = source ? `${source.name.replace(/\.[^.]+$/, "")}-charcoal` : "charcoal";
-  const svgOptions = { mode: settings.mode, ground: settings.ground, reveal, smaller };
-  const svg = useMemo(() => (output && active === 3 ? toSvg(output, svgOptions) : ""), [output, active, settings.mode, settings.ground, reveal, smaller]);
-  const svgBytes = useMemo(() => new Blob([svg]).size, [svg]);
+  const svgs = useMemo(() => {
+    if (!output || active !== 3) return { still: "", animated: "" };
+    const options = { mode: settings.mode, ground: settings.ground, smaller };
+    return { still: toSvg(output, { ...options, reveal: false }), animated: toSvg(output, { ...options, reveal: true }) };
+  }, [output, active, settings.mode, settings.ground, smaller]);
+  const stillBytes = useMemo(() => new Blob([svgs.still]).size, [svgs]);
+  const animatedBytes = useMemo(() => new Blob([svgs.animated]).size, [svgs]);
+  const saveSvg = (text: string, suffix: string) => save(new Blob([text], { type: "image/svg+xml" }), `${exportName}${suffix}.svg`);
   const pngScales = output ? [1, 2, 3, 4].filter((n) => output.cols * CELL_W * n <= MAX_CANVAS_SIDE && output.rows * CELL_H * n <= MAX_CANVAS_SIDE) : [];
 
   function savePng() {
@@ -557,26 +561,25 @@ export default function App() {
           <h2 data-mono className="text-title md:text-display font-bold">Fix it and take it</h2>
           {!output && <p className="text-soft">Finish a drawing on the easel and it will be ready here.</p>}
           <ul className={`flex flex-wrap gap-5 ${output ? "" : "hidden"}`}>
-            <li className="bg-sheet flex w-72 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
+            <li className="bg-sheet flex w-80 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
               <span data-mono className="text-heading font-semibold">SVG</span>
-              <span className="text-label text-soft">Scales anywhere. {sizeLabel(svgBytes)}.</span>
-              <label className="text-label flex min-h-11 items-center gap-2">
-                <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} className="accent-sanguine size-5" />
-                Reveal row by row, works on GitHub
-              </label>
+              <span className="text-label text-soft">Scales anywhere. Animated reveals row by row, and plays on GitHub.</span>
               {settings.mode === "Original colors" && (
                 <label className="text-label flex min-h-11 items-center gap-2">
                   <input type="checkbox" checked={smaller} onChange={(e) => setSmaller(e.target.checked)} className="accent-sanguine size-5" />
                   Smaller file, fewer colors
                 </label>
               )}
-              {svgBytes > KB * KB && (
+              {animatedBytes > KB * KB && (
                 <p role="status" className="text-label text-sanguine">
-                  {svgBytes > 5 * KB * KB ? "Very large. GitHub and browsers may struggle with it. Try fewer columns or Smaller file." : "Large file. Fewer columns or Smaller file will reduce it."}
+                  {animatedBytes > 5 * KB * KB ? "Very large. GitHub and browsers may struggle with it. Try fewer columns or Smaller file." : "Large file. Fewer columns or Smaller file will reduce it."}
                 </p>
               )}
-              <button type="button" onClick={() => save(new Blob([svg], { type: "image/svg+xml" }), `${exportName}.svg`)} className="bg-char text-sheet mt-auto min-h-11 px-4 font-semibold">
-                Download SVG
+              <button type="button" onClick={() => saveSvg(svgs.animated, "-animated")} className="bg-char text-sheet mt-auto min-h-11 px-4 font-semibold">
+                Download animated, {sizeLabel(animatedBytes)}
+              </button>
+              <button type="button" onClick={() => saveSvg(svgs.still, "")} className="border-char min-h-11 border px-4 font-medium">
+                Download still, {sizeLabel(stillBytes)}
               </button>
             </li>
             <li className="bg-sheet flex w-64 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "1deg" }}>
