@@ -12,6 +12,14 @@ Charcoal includes or loads the following work. Each stays under its own license.
 | Recursive | Typeface | SIL OFL 1.1 | https://github.com/arrowtype/recursive |
 | Noto Serif JP | Four seal glyphs in `public/fonts/seal.woff2` | SIL OFL 1.1, see `public/fonts/OFL.txt` | https://github.com/notofonts/noto-cjk |
 
+## Images
+
+The sample image `public/sample/charcoal.jpg`, the app icons and the social image are based on
+[Charcoal 7](https://commons.wikimedia.org/wiki/File:Charcoal_7.jpg) by Dati Bendo, European
+Commission, © European Union, 2026, licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The original was resized, cropped and
+converted to ASCII art.
+
 ## MIT License text
 
 Applies to each component above marked MIT, with its own copyright line.

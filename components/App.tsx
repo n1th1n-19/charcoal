@@ -44,12 +44,12 @@ const DEFAULTS: Settings = {
 
 // The specimen drawing is real pipeline output, cropped to the rock.
 function specimen(img: HTMLImageElement) {
-  const [w, h] = [560, 330];
+  const [w, h] = [900, 545];
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
   const ctx = c.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(img, 90, 85, w, h, 0, 0, w, h);
+  ctx.drawImage(img, 120, 125, w, h, 0, 0, w, h);
   const gray = P.grayscale(ctx.getImageData(0, 0, w, h).data, w, h);
   const cols = 130;
   const rows = P.rowsFor(w, h, cols);
@@ -203,7 +203,7 @@ export default function App() {
     img.onload = () => {
       setEmpty(specimen(img));
     };
-    img.src = "/sample/charcoal.jpeg";
+    img.src = "/sample/charcoal.jpg";
   }, []);
 
   // Draws itself in, row by row, like a stick working down the sheet.
@@ -242,8 +242,6 @@ export default function App() {
         bitmaps.current = { mono: m.mono, color: m.color };
         setArt({ cols: m.cols, rows: m.rows });
         setOutput({ cols: m.cols, rows: m.rows, cells: m.cells, rgb: m.rgb });
-        // ponytail: test hook for acceptance, removed in step 6.
-        (window as unknown as { __charcoal: unknown }).__charcoal = { cols: m.cols, rows: m.rows, cells: m.cells, ms: m.ms };
         clipToSeam();
         b.done = true;
       }
@@ -336,7 +334,7 @@ export default function App() {
     return () => window.removeEventListener("paste", onPaste);
   });
 
-  const trySample = async () => take(await (await fetch("/sample/charcoal.jpeg")).blob(), "charcoal.jpeg");
+  const trySample = async () => take(await (await fetch("/sample/charcoal.jpg")).blob(), "charcoal.jpg");
   const update = (patch: Partial<Settings>) => {
     if (patch.removeBg) burn();
     setSettings((s) => ({ ...s, ...patch }));
@@ -506,7 +504,7 @@ export default function App() {
           </div>
         </section>
 
-        <section aria-label="Easel" className={`${station} flex-col gap-3`}>
+        <section aria-label="Easel" className={`${station} flex-col gap-3 [@media(max-height:500px)]:flex-row [@media(max-height:500px)]:items-stretch`}>
           <Story chapter={2} compact className="shrink-0 xl:absolute xl:top-10 xl:left-10 xl:w-64 [@media(max-height:640px)]:hidden" />
           <div className="flex min-h-0 flex-1 items-center justify-center @container-size">
             {!source && <p className="text-soft">The drawing lands here once an image has been through the kiln.</p>}
@@ -523,8 +521,8 @@ export default function App() {
               />
             </div>
           </div>
-          <div className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2">
-            <div className="grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-6">
+          <div data-xscroll className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2 [@media(max-height:500px)]:w-1/2 [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:border-t-0 [@media(max-height:500px)]:pt-0">
+            <div className="grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-6 [@media(max-height:500px)]:grid-cols-2">
             {sliders.map(([label, key, min, max, step]) => (
               <label key={key} className="text-label text-soft flex min-h-11 min-w-0 flex-col justify-center">
                 <span className="flex justify-between">

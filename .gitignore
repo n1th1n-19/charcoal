@@ -5,3 +5,5 @@ next-env.d.ts
 public/models/
 .remember/
 *.tsbuildinfo
+/charcoal.jpeg
+/CLAUDE.md
