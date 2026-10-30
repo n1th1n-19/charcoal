@@ -114,6 +114,7 @@ export default function App() {
   const [frame, setFrame] = useState(false);
   const [pngScale, setPngScale] = useState(2);
   const [copied, setCopied] = useState(false);
+  const [adjust, setAdjust] = useState(false);
   const [art, setArt] = useState<{ cols: number; rows: number } | null>(null);
   const [download, setDownload] = useState("");
   const [lit, setLit] = useState(-1);
@@ -500,7 +501,7 @@ export default function App() {
     ["CLAHE strength", "clahe", 0, 6, 0.1],
   ];
 
-  const station = "station relative flex h-full shrink-0 w-dvw transition-opacity duration-200 p-4 md:p-10";
+  const station = "station relative flex h-full shrink-0 w-dvw transition-opacity duration-200 p-4 phone:pt-9 md:p-10";
 
   return (
     <div
@@ -535,23 +536,23 @@ export default function App() {
         </div>
       )}
       <main ref={scroller} className="sheet flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <section aria-label="Specimen" className={`${station} flex-col gap-4 md:flex-row md:items-center md:gap-10`}>
-          <div className="relative flex shrink-0 flex-col gap-3 md:w-[38%]">
+        <section aria-label="Specimen" className={`${station} flex-col gap-4 short:gap-2 flat:flex-row flat:gap-4 flat:p-3 md:flex-row md:items-center md:gap-10`}>
+          <div className="relative flex shrink-0 flex-col gap-3 phone:contents flat:h-full flat:w-1/2 flat:overflow-y-auto md:w-[38%]">
             <h1 data-mono className="text-heading flex items-center gap-2 font-bold">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icons/apple-touch-icon.png" alt="" width={32} height={32} className="rounded-sm" />
               Charcoal
             </h1>
-            <p data-mono className="text-title md:text-display leading-[1.02] font-bold">
+            <p data-mono className="text-title short:text-xl flat:text-2xl md:text-display shrink-0 truncate leading-[1.05] font-bold">
               {source ? source.name : "Lay an image on the sheet"}
             </p>
-            <p className="text-soft max-w-[40ch]">
+            <p className="text-soft short:hidden max-w-[40ch]">
               {source
                 ? `${source.w} by ${source.h}. Kept at full resolution, on this device only.`
                 : "It goes into the kiln as a picture and comes out as a charcoal drawing made of text. Nothing is uploaded or stored."}
             </p>
-            <div className="flex flex-wrap gap-3">
-              <label className="bg-char text-sheet focus-within:outline-sanguine inline-flex min-h-12 cursor-pointer items-center px-5 font-semibold focus-within:outline-2 focus-within:outline-offset-2">
+            <div className="flex flex-wrap gap-3 phone:order-3 phone:grid phone:grid-cols-2 phone:gap-2">
+              <label className="bg-char text-sheet focus-within:outline-sanguine inline-flex min-h-12 phone:justify-center phone:px-2 cursor-pointer items-center px-5 font-semibold focus-within:outline-2 focus-within:outline-offset-2">
                 Choose image
                 <input
                   type="file"
@@ -563,32 +564,33 @@ export default function App() {
                   }}
                 />
               </label>
-              <button type="button" onClick={trySample} className="border-char hover:bg-sheet min-h-12 border-2 px-5 font-medium">
-                Try the charcoal sample
+              <button type="button" onClick={trySample} className="border-char hover:bg-sheet min-h-12 border-2 px-5 font-medium phone:px-2">
+                Try the sample
               </button>
             </div>
-            <p className="text-label text-soft">Or paste, or drop anywhere on the sheet.</p>
-            <Story chapter={0} className="mt-2" />
+            <p className="text-label text-soft phone:order-3 short:hidden">Or paste, or drop anywhere on the sheet.</p>
+            <Story chapter={0} className="mt-2 phone:order-4 short:mt-0" />
           </div>
-          <div className="relative min-h-0 flex-1 self-stretch">
+          <div className="relative min-h-0 flex-1 self-stretch flat:overflow-hidden phone:order-2 phone:flex phone:items-center phone:justify-center phone:overflow-hidden">
             <div className="absolute -top-6 -right-10 size-72 opacity-40 md:size-[26rem]"><WoodSection /></div>
             {source ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={source.url} alt={`Your image, ${source.name}`} className="relative mx-auto mt-[6vh] max-h-[70%] rotate-[-1.2deg] border-8 border-sheet object-contain shadow-[2px_3px_0_#1b1a1955]" />
+              <img src={source.url} alt={`Your image, ${source.name}`} className="relative mx-auto mt-[6vh] max-h-[70%] rotate-[-1.2deg] phone:mt-0 phone:max-h-full flat:mt-0 flat:max-h-full border-8 border-sheet object-contain shadow-[2px_3px_0_#1b1a1955]" />
             ) : (
-              <canvas ref={specimenArt} role="img" aria-label="A lump of charcoal drawn in colored ASCII characters" className="relative mt-[6vh] w-full" />
+              <canvas ref={specimenArt} role="img" aria-label="A lump of charcoal drawn in colored ASCII characters" className="relative mt-[6vh] max-h-full w-full object-contain phone:mt-0 flat:mt-0" />
             )}
             <div className="absolute right-4 bottom-2 h-16 w-52 rotate-[-4deg] max-md:hidden"><Sticks /></div>
           </div>
         </section>
 
-        <section aria-label="Kiln" className={`${station} flex-col gap-4 md:flex-row-reverse md:items-center`}>
-          <div className="min-h-0 flex-1 self-stretch pt-[16vh]"><Kiln temp={temp} /></div>
-          <div className="flex shrink-0 flex-col gap-2 md:w-72">
+        <section aria-label="Kiln" className={`${station} flex-col gap-4 flat:flex-row-reverse flat:p-3 md:flex-row-reverse md:items-center`}>
+          <div className="min-h-0 flex-1 self-stretch pt-[16vh] phone:pt-[9dvh] flat:pt-[14dvh]"><Kiln temp={temp} /></div>
+          <div className="flex shrink-0 flex-col gap-2 flat:h-full flat:w-1/2 flat:overflow-y-auto md:w-72">
             <Story chapter={1} />
-            <p data-mono className="text-title font-bold tabular-nums">{temp} C</p>
+            <p data-mono className="text-title short:text-2xl font-bold tabular-nums">{temp} C</p>
             {download && <p role="status" className="text-label text-soft">{download}</p>}
-            <ol className="grid grid-cols-2 gap-x-4 md:grid-cols-1 md:gap-y-1" aria-live="polite">
+            <p className="text-label text-soft hidden phone:block flat:block" aria-live="polite">{lit >= 0 ? STAGES[lit] : "Waiting for an image"}</p>
+            <ol className="grid grid-cols-2 gap-x-4 phone:hidden flat:hidden md:grid-cols-1 md:gap-y-1">
               {STAGES.map((s, i) => (i === 0 && !settings.removeBg ? null : (
                 <li key={s} aria-current={i === lit ? "step" : undefined} className={i === lit ? "text-sanguine font-bold" : i < lit ? "line-through decoration-1" : "text-soft"}>
                   {s}
@@ -599,7 +601,7 @@ export default function App() {
         </section>
 
         <section aria-label="Easel" className={`${station} flex-col gap-3 [@media(max-height:500px)]:flex-row [@media(max-height:500px)]:items-stretch`}>
-          <Story chapter={2} compact className="shrink-0 xl:absolute xl:top-10 xl:left-10 xl:w-64 [@media(max-height:640px)]:hidden" />
+          <Story chapter={2} compact className={`shrink-0 xl:absolute xl:top-10 xl:left-10 xl:w-64 [@media(max-height:500px)]:hidden ${adjust ? "phone:hidden" : ""}`} />
           <div className="flex min-h-0 flex-1 items-center justify-center @container-size xl:pl-72">
             {!source && <p className="text-soft">The drawing lands here once an image has been through the kiln.</p>}
             <div
@@ -615,8 +617,8 @@ export default function App() {
               />
             </div>
           </div>
-          <div data-xscroll className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2 [@media(max-height:500px)]:w-1/2 [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:border-t-0 [@media(max-height:500px)]:pt-0">
-            <div className="grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-7 [@media(max-height:500px)]:grid-cols-2">
+          <div data-xscroll className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2 phone:max-h-[52dvh] phone:overflow-y-auto [@media(max-height:500px)]:w-1/2 [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:border-t-0 [@media(max-height:500px)]:pt-0">
+            <div className={`grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-7 [@media(max-height:500px)]:grid-cols-2 ${adjust ? "" : "phone:hidden"}`}>
             {sliders.map(([label, key, min, max, step]) => (
               <label key={key} className="text-label text-soft flex min-h-11 min-w-0 flex-col justify-center">
                 <span className="flex justify-between">
@@ -638,28 +640,31 @@ export default function App() {
             ))}
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+            <label className={`text-label text-soft flex min-h-11 shrink-0 items-center gap-2 ${adjust ? "" : "phone:hidden"}`}>
               <input type="checkbox" checked={settings.invert} onChange={(e) => change({ invert: e.target.checked, ...burnPatch(settings.burn, e.target.checked) })} className="accent-sanguine size-5" />
               Invert
             </label>
-            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+            <label className={`text-label text-soft flex min-h-11 shrink-0 items-center gap-2 ${adjust ? "" : "phone:hidden"}`}>
               Color
               <select value={settings.mode} onChange={(e) => change({ mode: e.target.value as Mode })} className="bg-sheet text-char border-char min-h-11 border px-2">
                 {MODES.map((m) => <option key={m}>{m}</option>)}
               </select>
             </label>
-            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+            <label className={`text-label text-soft flex min-h-11 shrink-0 items-center gap-2 ${adjust ? "" : "phone:hidden"}`}>
               Ground
               <select value={settings.ground} onChange={(e) => change({ ground: e.target.value as Settings["ground"] })} className="bg-sheet text-char border-char min-h-11 border px-2">
                 <option value="dark">Dark</option>
                 <option value="white">White</option>
               </select>
             </label>
-            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+            <label className={`text-label text-soft flex min-h-11 shrink-0 items-center gap-2 ${adjust ? "" : "phone:hidden"}`}>
               <input type="checkbox" checked={settings.removeBg} onChange={(e) => change({ removeBg: e.target.checked })} className="accent-sanguine size-5" />
               Remove background (176 MB once)
             </label>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className={`ml-auto flex shrink-0 items-center gap-2 phone:sticky phone:bottom-0 phone:w-full ${adjust ? "phone:bg-paper" : ""}`}>
+              <button type="button" onClick={() => setAdjust((v) => !v)} aria-expanded={adjust} className="border-char hidden min-h-11 border px-4 font-medium phone:mr-auto phone:block">
+                {adjust ? "Close" : "Adjust"}
+              </button>
               <button type="button" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo" className="border-char hover:bg-sheet grid size-11 place-items-center border disabled:opacity-40">
                 <UndoIcon />
               </button>
@@ -674,14 +679,14 @@ export default function App() {
           </div>
         </section>
 
-        <section aria-label="Portfolio" className={`${station} flex-col justify-center gap-4 overflow-y-auto md:gap-6 [@media(max-height:640px)]:justify-start`}>
-          <h2 data-mono className="text-title md:text-display font-bold">Fix it and take it</h2>
-          <Story chapter={3} className="[@media(max-height:640px)]:hidden" />
+        <section aria-label="Portfolio" className={`${station} flex-col justify-center gap-4 overflow-y-auto flat:gap-2 flat:p-3 md:gap-6 [@media(max-height:640px)]:justify-start`}>
+          <h2 data-mono className="text-title short:text-2xl md:text-display font-bold">Fix it and take it</h2>
+          <Story chapter={3} className="[@media(max-height:500px)]:hidden" />
           {!output && <p className="text-soft">Finish a drawing on the easel and it will be ready here.</p>}
-          <ul className={`strip flex gap-5 max-md:overflow-x-auto max-md:py-1 md:flex-wrap [@media(max-height:640px)]:flex-nowrap [@media(max-height:640px)]:overflow-x-auto ${output ? "" : "hidden"}`}>
-            <li className="bg-sheet flex w-80 shrink-0 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
+          <ul data-xscroll className={`strip flex shrink-0 snap-x snap-mandatory gap-3 max-md:overflow-x-auto max-md:py-1 md:flex-wrap md:gap-5 [@media(max-height:500px)]:flex-nowrap [@media(max-height:500px)]:overflow-x-auto ${output ? "" : "hidden"}`}>
+            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] flat:grid flat:w-[86vw] flat:grid-cols-2 flat:content-start flat:gap-x-4 flat:gap-y-1 flat:rotate-0 flat:p-3 md:w-80 md:-rotate-[1.5deg]">
               <span data-mono className="text-heading font-semibold">SVG</span>
-              <span className="text-label text-soft">Scales anywhere. Animated reveals row by row, and plays on GitHub.</span>
+              <span className="text-label text-soft short:hidden flat:hidden">Scales anywhere. Animated reveals row by row, and plays on GitHub.</span>
               <label className="text-label flex min-h-11 items-center gap-2">
                 <input type="checkbox" checked={frame} onChange={(e) => setFrame(e.target.checked)} className="accent-sanguine size-5" />
                 Add frame
@@ -693,18 +698,18 @@ export default function App() {
                 </label>
               )}
               {animatedBytes > KB * KB && (
-                <p role="status" className="text-label text-sanguine">
+                <p role="status" className="text-label text-sanguine flat:col-span-2">
                   {animatedBytes > 5 * KB * KB ? "Very large. GitHub and browsers may struggle with it. Try fewer columns or Smaller file." : "Large file. Fewer columns or Smaller file will reduce it."}
                 </p>
               )}
-              <button type="button" onClick={() => saveSvg(svgs.animated, "-animated")} className="bg-char text-sheet mt-auto min-h-11 px-4 font-semibold">
+              <button type="button" onClick={() => saveSvg(svgs.animated, "-animated")} className="bg-char text-sheet mt-auto min-h-11 px-2 font-semibold whitespace-nowrap short:text-sm flat:col-start-2 flat:row-start-1 flat:mt-0 flat:text-sm">
                 Download animated, {sizeLabel(animatedBytes)}
               </button>
-              <button type="button" onClick={() => saveSvg(svgs.still, "")} className="border-char min-h-11 border px-4 font-medium">
+              <button type="button" onClick={() => saveSvg(svgs.still, "")} className="border-char min-h-11 border px-2 font-medium whitespace-nowrap short:text-sm flat:col-start-2 flat:row-start-2 flat:text-sm">
                 Download still, {sizeLabel(stillBytes)}
               </button>
             </li>
-            <li className="bg-sheet flex w-64 shrink-0 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "1deg" }}>
+            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:rotate-[1deg]">
               <span data-mono className="text-heading font-semibold">PNG</span>
               <label className="text-label text-soft flex min-h-11 items-center justify-between gap-2">
                 Scale
@@ -718,7 +723,7 @@ export default function App() {
                 Download PNG
               </button>
             </li>
-            <li className="bg-sheet flex w-64 shrink-0 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-0.6deg" }}>
+            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:-rotate-[0.6deg]">
               <span data-mono className="text-heading font-semibold">Plain text</span>
               <span className="text-label text-soft">No color: text files cannot hold it.</span>
               <button type="button" onClick={copyText} className="border-char mt-auto min-h-11 border px-4 font-medium">

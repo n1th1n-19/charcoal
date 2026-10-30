@@ -8,6 +8,11 @@
   font-display: swap;
 }
 
+/* Portrait phones, and the shorter ones like the iPhone SE. */
+@custom-variant phone (@media (max-width: 767px) and (min-height: 501px));
+@custom-variant flat (@media (max-height: 500px));
+@custom-variant short (@media (max-width: 767px) and (min-height: 501px) and (max-height: 700px));
+
 @theme {
   --color-paper: #d9d5cb;
   --color-sheet: #e8e5dc;
@@ -178,6 +183,18 @@ svg {
   border-radius: 999px;
   background: var(--color-char);
   border: 2px solid var(--color-ember);
+}
+
+/* The rail's middle sits between two labels, so the handle never covers a button. */
+@media (max-width: 767px) {
+  .seam-handle {
+    top: auto;
+    bottom: calc(env(safe-area-inset-bottom) + 2px);
+    height: 44px;
+  }
+  .seam-handle::after {
+    inset: 8px 17px;
+  }
 }
 
 .burn {

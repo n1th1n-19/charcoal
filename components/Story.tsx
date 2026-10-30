@@ -12,7 +12,7 @@ export default function Story({ chapter, compact, className = "" }: { chapter: n
   const { title, kanji, text } = STORY[chapter];
   return (
     <section data-story aria-label={`Chapter ${chapter + 1}, ${title}`} className={`flex max-w-[38ch] gap-3 md:flex-col ${className}`}>
-      <div className={`relative size-20 shrink-0 md:size-36 ${compact ? "hidden xl:block" : ""}`}>
+      <div className={`relative size-20 shrink-0 short:hidden flat:hidden md:size-36 ${compact ? "hidden xl:block" : ""}`}>
         <Sumi chapter={chapter} />
       </div>
       <div className="min-w-0">
@@ -22,7 +22,7 @@ export default function Story({ chapter, compact, className = "" }: { chapter: n
           </span>
           Chapter {chapter + 1}, {title}
         </p>
-        <p className="text-soft mt-1 leading-snug" style={{ fontVariationSettings: '"CASL" 1, "slnt" -12' }}>
+        <p className="text-soft short:text-sm mt-1 leading-snug" style={{ fontVariationSettings: '"CASL" 1, "slnt" -12' }}>
           {text.split(" ").map((word, i) => (
             <span key={i} data-word className="inline-block">{word}&nbsp;</span>
           ))}
