@@ -104,6 +104,23 @@ svg {
   filter: url(#sumi);
 }
 
+.ash-spark {
+  position: absolute;
+  bottom: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #e2571e;
+  box-shadow: 0 0 8px 2px #e2571e88;
+  opacity: 0;
+  animation: spark 5.6s ease-out infinite;
+}
+@keyframes spark {
+  from { translate: 0 0; opacity: 0; }
+  12% { opacity: 1; }
+  to { translate: 34px -46vh; opacity: 0; }
+}
+
 /* Slow loops that keep a finished scene alive. */
 [data-drift="sway"] {
   animation: sway 6s ease-in-out infinite alternate;
@@ -237,7 +254,8 @@ html[data-ready] .burn {
     animation: none;
     clip-path: inset(0 50% 0 0);
   }
-  [data-drift] {
+  [data-drift],
+  .ash-spark {
     animation: none;
   }
   [data-drift="fall"],
