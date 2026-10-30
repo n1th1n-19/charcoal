@@ -1,5 +1,5 @@
-// Set these before deploying. SITE_URL feeds canonical links, the sitemap and social cards.
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://charcoal.example";
+// SITE_URL feeds canonical links, the sitemap and social cards.
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://charcoal.daystack.space";
 export const CONTACT_URL = "https://github.com/n1th1n-19";
 export const LEGAL_UPDATED = "30 October 2026";
 

@@ -28,7 +28,7 @@ Background removal needs the U-2-Net model, which is too large for this reposito
 [`u2net.onnx`](https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx) to
 `public/models/u2net.onnx`. Everything else works without it.
 
-Set `NEXT_PUBLIC_SITE_URL` to your domain before deploying.
+To deploy under your own domain, set `NEXT_PUBLIC_SITE_URL`.
 
 ## License
 
