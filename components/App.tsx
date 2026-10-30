@@ -408,6 +408,7 @@ export default function App() {
   return (
     <div
       className="flex h-dvh flex-col"
+      onDragStart={(e) => e.preventDefault()}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
