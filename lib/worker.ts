@@ -2,7 +2,8 @@
 import * as P from "@/lib/pipeline";
 import { GROUNDS, Mode, rasterize } from "@/lib/render";
 
-export const MODEL_URL = "/models/u2net.onnx";
+// Pinned to a commit so the model cannot change underneath the site.
+export const MODEL_URL = "https://huggingface.co/n1th1n-19/charcoal-u2net/resolve/a9f8c0c454f341d4b32ea088f3066cbac1af4421/u2net.onnx";
 const ORT_URL = "/ort/ort.wasm.min.mjs";
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
@@ -18,6 +19,7 @@ export type Settings = {
   removeBg: boolean;
   mode: Mode;
   ground: keyof typeof GROUNDS;
+  burn: number;
 };
 
 export type Request =

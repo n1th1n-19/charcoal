@@ -16,6 +16,17 @@ const STATIONS = ["Specimen", "Kiln", "Easel", "Portfolio"];
 const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and lift", "Composite", "Sharpen", "Contrast", "Resample", "Sample color", "Map to glyphs"];
 const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
 const MIN_STAGE_MS = 240;
+const BURN_NEUTRAL = 550;
+
+// Phones run out of memory far sooner than desktops. ponytail: fixed caps, measure real devices to refine.
+const safePixels = () => (navigator.maxTouchPoints > 0 ? 16e6 : 64e6);
+
+// One dial over three settings. The middle of its range leaves the base values unchanged.
+function burnPatch(c: number, invert: boolean) {
+  const t = (c - BURN_NEUTRAL) / 350;
+  const round = (v: number) => Math.round(v * 100) / 100;
+  return { burn: c, gamma: round((invert ? 0.8 : 1.18) * (1 - 0.3 * t)), contrast: round(1.05 * (1 + 0.3 * t)), clahe: round(2.6 * (1 + 0.6 * t)) };
+}
 const MAX_CANVAS_SIDE = 16384;
 const KB = 1024;
 
@@ -40,7 +51,11 @@ const DEFAULTS: Settings = {
   removeBg: false,
   mode: "Original colors",
   ground: "dark",
+  burn: BURN_NEUTRAL,
 };
+
+// The sample is a dark subject on a pale ground, so ink on white reads as a positive.
+const SAMPLE: Settings = { ...DEFAULTS, invert: false, gamma: 1.18, ground: "white" };
 
 // The specimen drawing is real pipeline output, cropped to the rock.
 function specimen(img: HTMLImageElement) {
@@ -86,6 +101,7 @@ export default function App() {
   const [temp, setTemp] = useState(20);
   const [empty, setEmpty] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [tooLarge, setTooLarge] = useState<{ file: File | Blob; name: string; w: number; h: number } | null>(null);
 
   const goTo = useCallback((index: number) => {
     const el = scroller.current;
@@ -303,7 +319,18 @@ export default function App() {
     goTo(1);
   }
 
-  async function take(file: File | Blob, name: string) {
+  function start(bitmap: ImageBitmap, file: File | Blob, name: string, w: number, h: number, initial: Settings) {
+    burn();
+    worker.current!.postMessage({ type: "load", bitmap }, [bitmap]);
+    setPast([]);
+    setFuture([]);
+    committed.current = initial;
+    setSettings(initial);
+    setSource({ url: URL.createObjectURL(file), name, w, h });
+  }
+
+  async function take(file: File | Blob, name: string, initial: Settings = settings) {
+    setTooLarge(null);
     if (!file.type.startsWith("image/")) {
       setError(`${name} is not an image. Use JPEG, PNG, WebP or GIF.`);
       return;
@@ -317,12 +344,25 @@ export default function App() {
       return;
     }
     const { width: w, height: h } = bitmap;
-    burn();
-    worker.current!.postMessage({ type: "load", bitmap }, [bitmap]);
-    setPast([]);
-    setFuture([]);
-    committed.current = settings;
-    setSource({ url: URL.createObjectURL(file), name, w, h });
+    if (w * h > safePixels()) {
+      bitmap.close();
+      setTooLarge({ file, name, w, h });
+      return;
+    }
+    start(bitmap, file, name, w, h, initial);
+  }
+
+  async function takeReduced() {
+    if (!tooLarge) return;
+    const { file, name, w, h } = tooLarge;
+    const scale = Math.sqrt(safePixels() / (w * h));
+    const [rw, rh] = [Math.floor(w * scale), Math.floor(h * scale)];
+    setTooLarge(null);
+    try {
+      start(await createImageBitmap(file, { resizeWidth: rw, resizeHeight: rh, resizeQuality: "high" }), file, name, rw, rh, settings);
+    } catch {
+      setError(`This device could not resize ${name}. Resize it elsewhere and try again.`);
+    }
   }
 
   useEffect(() => {
@@ -334,7 +374,7 @@ export default function App() {
     return () => window.removeEventListener("paste", onPaste);
   });
 
-  const trySample = async () => take(await (await fetch("/sample/charcoal.jpg")).blob(), "charcoal.jpg");
+  const trySample = async () => take(await (await fetch("/sample/charcoal.jpg")).blob(), "charcoal.jpg", SAMPLE);
   const update = (patch: Partial<Settings>) => {
     if (patch.removeBg) burn();
     setSettings((s) => ({ ...s, ...patch }));
@@ -409,6 +449,7 @@ export default function App() {
   }
 
   const sliders: [string, keyof Settings, number, number, number][] = [
+    ["Burn, C", "burn", 200, 900, 10],
     ["Columns", "cols", 40, 400, 10],
     ["Gamma", "gamma", 0.4, 1.8, 0.01],
     ["Contrast", "contrast", 0.6, 2, 0.01],
@@ -435,6 +476,21 @@ export default function App() {
         <p role="alert" className="bg-sheet text-sanguine border-sanguine fixed top-3 left-1/2 z-40 max-w-[90vw] -translate-x-1/2 border px-4 py-2">
           {error}
         </p>
+      )}
+      {tooLarge && (
+        <div role="alert" className="bg-sheet border-char fixed top-3 left-1/2 z-40 flex w-[min(90vw,32rem)] -translate-x-1/2 flex-col gap-2 border-2 p-4">
+          <p>
+            {tooLarge.name} is {Math.round((tooLarge.w * tooLarge.h) / 1e6)} MP, more than this device can safely process. Your original file stays unchanged.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={takeReduced} className="bg-char text-sheet min-h-11 px-4 font-semibold">
+              Convert at {Math.round(safePixels() / 1e6)} MP
+            </button>
+            <button type="button" onClick={() => setTooLarge(null)} className="border-char min-h-11 border px-4 font-medium">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
       <main ref={scroller} className="sheet flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
         <section aria-label="Specimen" className={`${station} flex-col gap-4 md:flex-row md:items-center md:gap-10`}>
@@ -506,7 +562,7 @@ export default function App() {
 
         <section aria-label="Easel" className={`${station} flex-col gap-3 [@media(max-height:500px)]:flex-row [@media(max-height:500px)]:items-stretch`}>
           <Story chapter={2} compact className="shrink-0 xl:absolute xl:top-10 xl:left-10 xl:w-64 [@media(max-height:640px)]:hidden" />
-          <div className="flex min-h-0 flex-1 items-center justify-center @container-size">
+          <div className="flex min-h-0 flex-1 items-center justify-center @container-size xl:pl-72">
             {!source && <p className="text-soft">The drawing lands here once an image has been through the kiln.</p>}
             <div
               className={`relative z-5 ${source ? "" : "hidden"}`}
@@ -522,7 +578,7 @@ export default function App() {
             </div>
           </div>
           <div data-xscroll className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2 [@media(max-height:500px)]:w-1/2 [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:border-t-0 [@media(max-height:500px)]:pt-0">
-            <div className="grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-6 [@media(max-height:500px)]:grid-cols-2">
+            <div className="grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-7 [@media(max-height:500px)]:grid-cols-2">
             {sliders.map(([label, key, min, max, step]) => (
               <label key={key} className="text-label text-soft flex min-h-11 min-w-0 flex-col justify-center">
                 <span className="flex justify-between">
@@ -535,7 +591,7 @@ export default function App() {
                   max={max}
                   step={step}
                   value={Number(settings[key])}
-                  onChange={(e) => update({ [key]: Number(e.target.value) })}
+                  onChange={(e) => update(key === "burn" ? burnPatch(Number(e.target.value), settings.invert) : { [key]: Number(e.target.value) })}
                   onPointerUp={() => commit(settings)}
                   onKeyUp={() => commit(settings)}
                   className="accent-sanguine w-full"
@@ -545,7 +601,7 @@ export default function App() {
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
-              <input type="checkbox" checked={settings.invert} onChange={(e) => change({ invert: e.target.checked, gamma: e.target.checked ? 0.8 : 1.18 })} className="accent-sanguine size-5" />
+              <input type="checkbox" checked={settings.invert} onChange={(e) => change({ invert: e.target.checked, ...burnPatch(settings.burn, e.target.checked) })} className="accent-sanguine size-5" />
               Invert
             </label>
             <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">

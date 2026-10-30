@@ -24,9 +24,8 @@ npm run dev
 
 `npm run build` writes a static site to `out/`, and `npm run check` runs the tests.
 
-Background removal needs the U-2-Net model, which is too large for this repository. Download
-[`u2net.onnx`](https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx) to
-`public/models/u2net.onnx`. Everything else works without it.
+Background removal downloads the U-2-Net model from
+[Hugging Face](https://huggingface.co/n1th1n-19/charcoal-u2net) the first time someone turns it on.
 
 To deploy under your own domain, set `NEXT_PUBLIC_SITE_URL`.
 

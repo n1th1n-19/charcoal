@@ -22,8 +22,9 @@ export default function Privacy() {
       </ul>
       <h2>Background removal</h2>
       <p>
-        If you turn this on, your browser downloads a 176 MB model file once. The model then runs on your device. Your
-        image is not sent anywhere. Your browser may keep the model in its normal cache.
+        If you turn this on, your browser downloads a 176 MB model file once from Hugging Face, which may log your IP
+        address like any website. The model then runs on your device. Your image is not sent anywhere. Your browser may
+        keep the model in its normal cache.
       </p>
       <h2>Hosting</h2>
       <p>

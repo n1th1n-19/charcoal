@@ -5,7 +5,7 @@ Charcoal includes or loads the following work. Each stays under its own license.
 | Component | Used for | License | Source |
 |---|---|---|---|
 | ONNX Runtime Web | Runs the background model | MIT, Copyright Microsoft Corporation | https://github.com/microsoft/onnxruntime |
-| U-2-Net | Background removal model (not in this repository) | Apache-2.0, Copyright Xuebin Qin | https://github.com/xuebinqin/U-2-Net |
+| U-2-Net | Background removal model, downloaded from Hugging Face on request | Apache-2.0, Copyright Xuebin Qin | https://github.com/xuebinqin/U-2-Net |
 | anime.js | Animation | MIT, Copyright Julian Garnier | https://github.com/juliangarnier/anime |
 | Next.js | Framework | MIT, Copyright Vercel, Inc. | https://github.com/vercel/next.js |
 | React | Framework | MIT, Copyright Meta Platforms, Inc. and affiliates | https://github.com/facebook/react |
