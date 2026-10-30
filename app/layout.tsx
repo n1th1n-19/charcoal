@@ -14,10 +14,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: [
-      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icons/icon.svg", type: "image/svg+xml" },
-    ],
+    icon: { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
     apple: "/icons/apple-touch-icon.png",
   },
   openGraph: {
