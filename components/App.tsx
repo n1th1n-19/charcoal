@@ -77,6 +77,7 @@ export default function App() {
   const [future, setFuture] = useState<Settings[]>([]);
   const [output, setOutput] = useState<Output | null>(null);
   const [smaller, setSmaller] = useState(false);
+  const [frame, setFrame] = useState(false);
   const [pngScale, setPngScale] = useState(2);
   const [copied, setCopied] = useState(false);
   const [art, setArt] = useState<{ cols: number; rows: number } | null>(null);
@@ -386,9 +387,9 @@ export default function App() {
   const exportName = source ? `${source.name.replace(/\.[^.]+$/, "")}-charcoal` : "charcoal";
   const svgs = useMemo(() => {
     if (!output || active !== 3) return { still: "", animated: "" };
-    const options = { mode: settings.mode, ground: settings.ground, smaller };
+    const options = { mode: settings.mode, ground: settings.ground, smaller, frame };
     return { still: toSvg(output, { ...options, reveal: false }), animated: toSvg(output, { ...options, reveal: true }) };
-  }, [output, active, settings.mode, settings.ground, smaller]);
+  }, [output, active, settings.mode, settings.ground, smaller, frame]);
   const stillBytes = useMemo(() => new Blob([svgs.still]).size, [svgs]);
   const animatedBytes = useMemo(() => new Blob([svgs.animated]).size, [svgs]);
   const saveSvg = (text: string, suffix: string) => save(new Blob([text], { type: "image/svg+xml" }), `${exportName}${suffix}.svg`);
@@ -589,6 +590,10 @@ export default function App() {
             <li className="bg-sheet flex w-80 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
               <span data-mono className="text-heading font-semibold">SVG</span>
               <span className="text-label text-soft">Scales anywhere. Animated reveals row by row, and plays on GitHub.</span>
+              <label className="text-label flex min-h-11 items-center gap-2">
+                <input type="checkbox" checked={frame} onChange={(e) => setFrame(e.target.checked)} className="accent-sanguine size-5" />
+                Add frame
+              </label>
               {settings.mode === "Original colors" && (
                 <label className="text-label flex min-h-11 items-center gap-2">
                   <input type="checkbox" checked={smaller} onChange={(e) => setSmaller(e.target.checked)} className="accent-sanguine size-5" />

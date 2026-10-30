@@ -3,11 +3,11 @@ import { RAMP } from "./pipeline.ts";
 import { cellColor, GROUNDS, type Mode } from "./render.ts";
 
 export type Output = { cols: number; rows: number; cells: Uint8Array; rgb: Uint8Array };
-export type SvgOptions = { mode: Mode; ground: keyof typeof GROUNDS; reveal: boolean; smaller: boolean };
+export type SvgOptions = { mode: Mode; ground: keyof typeof GROUNDS; reveal: boolean; smaller: boolean; frame: boolean };
 
 const CELL_W = 10 / 3;
 const CELL_H = 6.25;
-const PAD = 20;
+const FRAME_PAD = 20;
 const ROW_DUR = 0.05;
 const STAGGER = 0.05;
 
@@ -68,6 +68,7 @@ function colorRow(out: Output, y: number, o: SvgOptions, ink: readonly number[])
 }
 
 export function toSvg(out: Output, o: SvgOptions) {
+  const PAD = o.frame ? FRAME_PAD : 0;
   const artW = out.cols * CELL_W;
   const artH = out.rows * CELL_H;
   const canvasW = artW + PAD * 2;
@@ -77,11 +78,15 @@ export function toSvg(out: Output, o: SvgOptions) {
   const dark = o.ground === "dark";
   const parts: string[] = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${float(canvasW)}" height="${float(canvasH)}" viewBox="0 0 ${float(canvasW)} ${float(canvasH)}" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">`,
-    dark
-      ? '<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#111722"/><stop offset="1" stop-color="#0d1117"/></linearGradient></defs>'
-      : "<defs></defs>",
-    `<rect width="${float(canvasW)}" height="${float(canvasH)}" rx="12" fill="${dark ? "url(#bg)" : hex(fill, false)}"/>`,
-    `<rect x="0.5" y="0.5" width="${float(canvasW - 1)}" height="${float(canvasH - 1)}" rx="12" fill="none" stroke="${dark ? "#30363d" : "#d0d7de"}" stroke-width="1"/>`,
+    ...(o.frame
+      ? [
+          dark
+            ? '<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#111722"/><stop offset="1" stop-color="#0d1117"/></linearGradient></defs>'
+            : "<defs></defs>",
+          `<rect width="${float(canvasW)}" height="${float(canvasH)}" rx="12" fill="${dark ? "url(#bg)" : hex(fill, false)}"/>`,
+          `<rect x="0.5" y="0.5" width="${float(canvasW - 1)}" height="${float(canvasH - 1)}" rx="12" fill="none" stroke="${dark ? "#30363d" : "#d0d7de"}" stroke-width="1"/>`,
+        ]
+      : [`<rect width="${float(canvasW)}" height="${float(canvasH)}" fill="${hex(fill, false)}"/>`]),
   ];
   const fontSize = fixed(CELL_H * 0.86, 1);
   for (let ry = 0; ry < out.rows; ry++) {

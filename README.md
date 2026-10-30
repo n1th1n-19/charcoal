@@ -2,6 +2,14 @@
 
 Turn any image into detailed ASCII art in your browser. Nothing is uploaded, and no account is needed.
 
+## A note before you dig in
+
+I apologize to whoever finds this repo: I built this entire project with AI.
+
+The idea, the decisions and the testing are mine, but most of the code was written with AI assistance. That means there may be rough edges, odd patterns, or things a careful developer would have done differently. If you're here to learn from the code, double-check anything before you copy it into your own work. If you spot something broken or questionable, issues and pull requests are very welcome. I'm still learning, and this project is part of that.
+
+## Features
+
 - Mono, 16 colors, green, amber or original colors
 - Optional on-device background removal
 - Export animated or still SVG, PNG and plain text
