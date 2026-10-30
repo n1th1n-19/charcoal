@@ -472,7 +472,6 @@ export default function App() {
             </div>
             <p className="text-label text-soft">Or paste, or drop anywhere on the sheet.</p>
             <Story chapter={0} className="mt-2" />
-            <LegalLinks />
           </div>
           <div className="relative min-h-0 flex-1 self-stretch">
             <div className="absolute -top-6 -right-10 size-72 opacity-40 md:size-[26rem]"><WoodSection /></div>
@@ -633,10 +632,10 @@ export default function App() {
               </button>
             </li>
           </ul>
-          <LegalLinks />
         </section>
       </main>
 
+      <LegalLinks />
       <nav aria-label="Stations" className="ruler bg-sheet relative z-5 grid shrink-0 grid-cols-4 pb-[env(safe-area-inset-bottom)]">
         <span ref={needle} aria-hidden="true" className="bg-sanguine absolute top-0 h-4 w-0.5" />
         {STATIONS.map((name, i) => (
@@ -667,9 +666,9 @@ function UndoIcon({ flip }: { flip?: boolean }) {
 
 function LegalLinks() {
   return (
-    <p className="text-label text-soft flex gap-4">
+    <nav aria-label="Legal" className="text-label text-soft fixed top-1 right-3 z-20 flex gap-4 md:top-3 md:right-5">
       <Link href="/privacy" className="inline-flex min-h-6 items-center underline">Privacy</Link>
       <Link href="/terms" className="inline-flex min-h-6 items-center underline">Terms</Link>
-    </p>
+    </nav>
   );
 }
