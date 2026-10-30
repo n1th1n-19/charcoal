@@ -49,9 +49,14 @@ export default function Fixative({ output, source, settings, showing, previewCan
   async function savePng() {
     if (!output) return;
     const { fill, ink } = GROUNDS[settings.ground];
-    const img = rasterize(output.cols, output.rows, output.cells, output.rgb, settings.mode, fill, ink, pngScale);
-    const c = new OffscreenCanvas(img.width, img.height);
-    c.getContext("2d")!.putImageData(img, 0, 0);
+    // Scaling with smoothing off repeats each pixel, which keeps characters crisp and is far faster.
+    const img = rasterize(output.cols, output.rows, output.cells, output.rgb, settings.mode, fill, ink);
+    const base = new OffscreenCanvas(img.width, img.height);
+    base.getContext("2d")!.putImageData(img, 0, 0);
+    const c = new OffscreenCanvas(img.width * pngScale, img.height * pngScale);
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(base, 0, 0, c.width, c.height);
     save(await c.convertToBlob({ type: "image/png" }), `${exportName}.png`);
   }
 

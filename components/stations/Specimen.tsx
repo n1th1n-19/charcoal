@@ -4,7 +4,7 @@ import { animate } from "animejs";
 import { useEffect, useRef, useState } from "react";
 import { Sticks, WoodSection } from "@/components/Sketches";
 import Story from "@/components/Story";
-import { LOADER_MIN_MS, Source, STATION } from "@/lib/config";
+import { IMAGE_TYPES, LOADER_MIN_MS, PICKING_MAX_MS, Source, STATION } from "@/lib/config";
 import { reducedMotion } from "@/lib/motion";
 
 type Props = { source: Source | null; take: (file: File, name: string) => void; trySample: () => void };
@@ -41,13 +41,14 @@ export default function Specimen({ source, take, trySample }: Props) {
               <span className="min-w-[7rem] text-center">{picking ? "Opening files" : "Choose image"}</span>
               <input
                 type="file"
-                accept="image/*"
+                accept={IMAGE_TYPES}
                 className="sr-only"
                 onClick={(e) => {
                   setPicking(true);
                   const done = () => setPicking(false);
                   window.addEventListener("focus", done, { once: true });
                   e.currentTarget.addEventListener("cancel", done, { once: true });
+                  setTimeout(done, PICKING_MAX_MS);
                 }}
                 onChange={(e) => {
                   setPicking(false);

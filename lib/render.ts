@@ -54,7 +54,7 @@ function glyphs() {
   return atlas;
 }
 
-// One pixel loop for preview and PNG. Scale repeats glyph pixels, keeping characters crisp.
+// One pixel loop for preview and PNG.
 export function rasterize(
   cols: number,
   rows: number,
@@ -63,11 +63,10 @@ export function rasterize(
   mode: Mode,
   fill: readonly number[],
   ink: readonly number[],
-  scale = 1,
 ) {
   const masks = glyphs();
-  const W = cols * CELL_W * scale;
-  const H = rows * CELL_H * scale;
+  const W = cols * CELL_W;
+  const H = rows * CELL_H;
   const img = new ImageData(W, H);
   const px = img.data;
   for (let i = 0; i < W * H; i++) {
@@ -80,11 +79,11 @@ export function rasterize(
     if (cells[i] === 0) continue;
     const mask = masks[cells[i]];
     const color = cellColor(mode, rgb, i, ink);
-    const left = (i % cols) * CELL_W * scale;
-    const top = Math.floor(i / cols) * CELL_H * scale;
-    for (let y = 0; y < CELL_H * scale; y++) {
-      for (let x = 0; x < CELL_W * scale; x++) {
-        const a = mask[Math.floor(y / scale) * CELL_W + Math.floor(x / scale)];
+    const left = (i % cols) * CELL_W;
+    const top = Math.floor(i / cols) * CELL_H;
+    for (let y = 0; y < CELL_H; y++) {
+      for (let x = 0; x < CELL_W; x++) {
+        const a = mask[y * CELL_W + x];
         if (!a) continue;
         const o = ((top + y) * W + left + x) * 4;
         px[o] += ((color[0] - px[o]) * a) / 255;

@@ -7,7 +7,10 @@ export const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and li
 export const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
 export const MIN_STAGE_MS = 240;
 export const LOADER_MIN_MS = 1400;
-export const SAVING_MIN_MS = 900;
+export const SAVING_MIN_MS = 250;
+export const PICKING_MAX_MS = 1200;
+// A list, because Chromium opens its file window slowly for the image/* wildcard.
+export const IMAGE_TYPES = "image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp";
 export const READY = { label: "Drawing ready", pct: 100 };
 export const BURN_NEUTRAL = 550;
 export const MAX_CANVAS_SIDE = 16384;
