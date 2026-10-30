@@ -35,7 +35,7 @@ export default function Terms() {
         <li>ONNX Runtime Web, MIT</li>
         <li>anime.js, MIT</li>
         <li>Next.js and React, MIT</li>
-        <li>Recursive typeface, SIL Open Font License</li>
+        <li>Recursive and Noto Serif JP typefaces, SIL Open Font License</li>
       </ul>
       <h2>Changes</h2>
       <p>If these terms change, the new version will appear on this page with a new date.</p>

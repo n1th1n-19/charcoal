@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Only the four seal glyphs, subset from Noto Serif JP. */
+@font-face {
+  font-family: "Seal";
+  src: url("/fonts/seal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
 @theme {
   --color-paper: #d9d5cb;
   --color-sheet: #e8e5dc;
@@ -12,6 +20,7 @@
   --color-ember: #e2571e;
 
   --font-sans: var(--font-recursive), system-ui, sans-serif;
+  --font-jp: "Seal", serif;
   --font-art: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --text-display: 3.5rem;
@@ -85,6 +94,41 @@ svg {
 
 .rough {
   filter: url(#char);
+}
+.sumi {
+  filter: url(#sumi);
+}
+
+/* Slow loops that keep a finished scene alive. */
+[data-drift="sway"] {
+  animation: sway 6s ease-in-out infinite alternate;
+}
+[data-drift="fall"] {
+  animation: fall 7s ease-in infinite;
+}
+[data-drift="rise"] {
+  animation: rise 4s ease-out infinite;
+}
+[data-drift="mist"] {
+  animation: mist 9s ease-in-out infinite alternate;
+}
+@keyframes sway {
+  from { rotate: -1.6deg; }
+  to { rotate: 1.6deg; }
+}
+@keyframes fall {
+  from { translate: 0 0; rotate: 0deg; opacity: 0; }
+  12% { opacity: 1; }
+  to { translate: 24px 130px; rotate: 200deg; opacity: 0; }
+}
+@keyframes rise {
+  from { translate: 0 22px; opacity: 0; }
+  30% { opacity: 1; }
+  to { translate: 8px -26px; opacity: 0; }
+}
+@keyframes mist {
+  from { translate: -10px 0; }
+  to { translate: 12px 0; }
 }
 
 .ruler {
@@ -175,6 +219,13 @@ html[data-ready] .burn {
   .burn-ink {
     animation: none;
     clip-path: inset(0 50% 0 0);
+  }
+  [data-drift] {
+    animation: none;
+  }
+  [data-drift="fall"],
+  [data-drift="rise"] {
+    opacity: 0;
   }
   [data-mono] {
     transition: none;

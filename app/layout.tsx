@@ -3,7 +3,7 @@ import { Recursive } from "next/font/google";
 import { DESCRIPTION, NAME, SITE_URL, TAGLINE } from "@/lib/site";
 import "./globals.css";
 
-const recursive = Recursive({ subsets: ["latin"], axes: ["MONO", "CASL"], variable: "--font-recursive" });
+const recursive = Recursive({ subsets: ["latin"], axes: ["MONO", "CASL", "slnt"], variable: "--font-recursive" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -44,6 +44,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="3" />
             <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.6 1.7" result="tooth" />
             <feComposite in="d" in2="tooth" operator="in" />
+          </filter>
+          <filter id="sumi" x="-8%" y="-8%" width="116%" height="116%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.05 0.3" numOctaves="3" seed="4" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="5" result="d" />
+            <feTurbulence type="fractalNoise" baseFrequency="0.09 0.8" numOctaves="2" seed="9" />
+            <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3 2" result="dry" />
+            <feComposite in="d" in2="dry" operator="in" />
           </filter>
         </svg>
         {children}

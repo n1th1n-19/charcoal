@@ -1,10 +1,11 @@
 "use client";
 
-import { animate, stagger } from "animejs";
+import { animate, createTimeline, stagger, svg } from "animejs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Seam, { markSides, seamX, SEAM_EVENT } from "@/components/Seam";
 import { Kiln, Sticks, WoodSection } from "@/components/Sketches";
+import Story from "@/components/Story";
 import { Output, toSvg, toText } from "@/lib/exports";
 import { reducedMotion } from "@/lib/motion";
 import * as P from "@/lib/pipeline";
@@ -149,6 +150,19 @@ export default function App() {
       window.removeEventListener(SEAM_EVENT, clipToSeam);
     };
   }, [goTo]);
+
+  // Arriving at a station paints its scene stroke by stroke, stamps the seal, then writes the words.
+  useEffect(() => {
+    if (reducedMotion()) return;
+    const root = scroller.current!.children[active];
+    const strokes = root.querySelectorAll("[data-ink]");
+    if (!strokes.length) return;
+    const run = createTimeline()
+      .add(svg.createDrawable(strokes), { draw: ["0 0", "0 1"], duration: 900, delay: stagger(170), ease: "inOutSine" }, 0)
+      .add(root.querySelectorAll("[data-hanko]"), { scale: [1.9, 1], opacity: [0, 1], rotate: [-16, -4], duration: 340, ease: "outBack" }, 500)
+      .add(root.querySelectorAll("[data-word]"), { opacity: [0, 1], translateY: [5, 0], delay: stagger(45), duration: 340, ease: "outQuad" }, 700);
+    return () => void run.revert();
+  }, [active]);
 
   // Dragging a finger or pointer over the sheet leaves a smudge that slowly lifts.
   useEffect(() => {
@@ -457,6 +471,7 @@ export default function App() {
               </button>
             </div>
             <p className="text-label text-soft">Or paste, or drop anywhere on the sheet.</p>
+            <Story chapter={0} className="mt-2" />
             <LegalLinks />
           </div>
           <div className="relative min-h-0 flex-1 self-stretch">
@@ -477,7 +492,8 @@ export default function App() {
 
         <section aria-label="Kiln" className={`${station} flex-col gap-4 md:flex-row-reverse md:items-center`}>
           <div className="min-h-0 flex-1 self-stretch pt-[16vh]"><Kiln temp={temp} /></div>
-          <div className="flex shrink-0 flex-col gap-2 md:w-64">
+          <div className="flex shrink-0 flex-col gap-2 md:w-72">
+            <Story chapter={1} />
             <p data-mono className="text-title font-bold tabular-nums">{temp} C</p>
             {download && <p role="status" className="text-label text-soft">{download}</p>}
             <ol className="grid grid-cols-2 gap-x-4 md:grid-cols-1 md:gap-y-1" aria-live="polite">
@@ -491,6 +507,7 @@ export default function App() {
         </section>
 
         <section aria-label="Easel" className={`${station} flex-col gap-3`}>
+          <Story chapter={2} compact className="shrink-0 xl:absolute xl:top-10 xl:left-10 xl:w-64 [@media(max-height:640px)]:hidden" />
           <div className="flex min-h-0 flex-1 items-center justify-center @container-size">
             {!source && <p className="text-soft">The drawing lands here once an image has been through the kiln.</p>}
             <div
@@ -567,6 +584,7 @@ export default function App() {
 
         <section aria-label="Portfolio" className={`${station} flex-col justify-center gap-6`}>
           <h2 data-mono className="text-title md:text-display font-bold">Fix it and take it</h2>
+          <Story chapter={3} />
           {!output && <p className="text-soft">Finish a drawing on the easel and it will be ready here.</p>}
           <ul className={`flex flex-wrap gap-5 ${output ? "" : "hidden"}`}>
             <li className="bg-sheet flex w-80 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
