@@ -4,6 +4,7 @@ import { GROUNDS, Mode, rasterize } from "@/lib/render";
 
 // Pinned to a commit so the model cannot change underneath the site.
 export const MODEL_URL = "https://huggingface.co/n1th1n-19/charcoal-u2net/resolve/a9f8c0c454f341d4b32ea088f3066cbac1af4421/u2net.onnx";
+const MODEL_SHA256 = "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491";
 const ORT_URL = "/ort/ort.wasm.min.mjs";
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
@@ -87,6 +88,9 @@ async function loadModel() {
     bytes.set(p, at);
     at += p.length;
   }
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const hash = Array.from(digest, (v) => v.toString(16).padStart(2, "0")).join("");
+  if (hash !== MODEL_SHA256) throw new Error("the downloaded file failed its integrity check");
   session = await ort!.InferenceSession.create(bytes);
   return session!;
 }

@@ -636,12 +636,12 @@ export default function App() {
           </div>
         </section>
 
-        <section aria-label="Portfolio" className={`${station} flex-col justify-center gap-6`}>
+        <section aria-label="Portfolio" className={`${station} flex-col justify-center gap-4 overflow-y-auto md:gap-6 [@media(max-height:640px)]:justify-start`}>
           <h2 data-mono className="text-title md:text-display font-bold">Fix it and take it</h2>
-          <Story chapter={3} />
+          <Story chapter={3} className="[@media(max-height:640px)]:hidden" />
           {!output && <p className="text-soft">Finish a drawing on the easel and it will be ready here.</p>}
-          <ul className={`flex flex-wrap gap-5 ${output ? "" : "hidden"}`}>
-            <li className="bg-sheet flex w-80 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
+          <ul className={`strip flex gap-5 max-md:overflow-x-auto max-md:py-1 md:flex-wrap [@media(max-height:640px)]:flex-nowrap [@media(max-height:640px)]:overflow-x-auto ${output ? "" : "hidden"}`}>
+            <li className="bg-sheet flex w-80 shrink-0 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
               <span data-mono className="text-heading font-semibold">SVG</span>
               <span className="text-label text-soft">Scales anywhere. Animated reveals row by row, and plays on GitHub.</span>
               <label className="text-label flex min-h-11 items-center gap-2">
@@ -666,7 +666,7 @@ export default function App() {
                 Download still, {sizeLabel(stillBytes)}
               </button>
             </li>
-            <li className="bg-sheet flex w-64 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "1deg" }}>
+            <li className="bg-sheet flex w-64 shrink-0 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "1deg" }}>
               <span data-mono className="text-heading font-semibold">PNG</span>
               <label className="text-label text-soft flex min-h-11 items-center justify-between gap-2">
                 Scale
@@ -680,7 +680,7 @@ export default function App() {
                 Download PNG
               </button>
             </li>
-            <li className="bg-sheet flex w-64 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-0.6deg" }}>
+            <li className="bg-sheet flex w-64 shrink-0 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-0.6deg" }}>
               <span data-mono className="text-heading font-semibold">Plain text</span>
               <span className="text-label text-soft">No color: text files cannot hold it.</span>
               <button type="button" onClick={copyText} className="border-char mt-auto min-h-11 border px-4 font-medium">
