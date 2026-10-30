@@ -17,6 +17,7 @@ const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and lift", "C
 const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
 const MIN_STAGE_MS = 240;
 const LOADER_MIN_MS = 1400;
+const READY = { label: "Drawing ready", pct: 100 };
 const BURN_NEUTRAL = 550;
 
 // Phones run out of memory far sooner than desktops. ponytail: fixed caps, measure real devices to refine.
@@ -84,6 +85,7 @@ export default function App() {
   const [pngScale, setPngScale] = useState(2);
   const [copied, setCopied] = useState(false);
   const [adjust, setAdjust] = useState(false);
+  const [progress, setProgress] = useState(READY);
   const [art, setArt] = useState<{ cols: number; rows: number } | null>(null);
   const [download, setDownload] = useState("");
   const [lit, setLit] = useState(-1);
@@ -223,10 +225,13 @@ export default function App() {
       const b = burning.current;
       if (m.type === "stage") {
         if (b.on) b.queue.push(m.name);
+        setProgress({ label: m.name, pct: Math.round(((STAGES.indexOf(m.name) + 1) / STAGES.length) * 100) });
       } else if (m.type === "download") {
+        if (m.total) setProgress({ label: "Downloading model", pct: Math.round((m.loaded / m.total) * 100) });
         setDownload(m.total ? `Downloading model, ${Math.round(m.loaded / 1e6)} of ${Math.round(m.total / 1e6)} MB` : "Downloading model");
       } else if (m.type === "error") {
         setDownload("");
+        setProgress(READY);
         setError(m.message);
         if (m.model) setSettings((s) => ({ ...s, removeBg: false }));
         b.done = true;
@@ -240,6 +245,7 @@ export default function App() {
         bitmaps.current?.mono.close();
         bitmaps.current?.color.close();
         bitmaps.current = { mono: m.mono, color: m.color };
+        setProgress(READY);
         setArt({ cols: m.cols, rows: m.rows });
         setOutput({ cols: m.cols, rows: m.rows, cells: m.cells, rgb: m.rgb });
         clipToSeam();
@@ -305,6 +311,7 @@ export default function App() {
 
   useEffect(() => {
     if (!source || !worker.current) return;
+    setProgress({ label: "Starting", pct: 0 });
     worker.current.postMessage({ type: "render", id: ++request.current, settings });
   }, [settings, source]);
 
@@ -573,6 +580,13 @@ export default function App() {
                 aria-label="ASCII drawing"
               />
             </div>
+          </div>
+          <div role="status" aria-label={`${progress.label}, ${progress.pct} percent`} className={`text-label text-soft flex shrink-0 items-center gap-3 [@media(max-height:500px)]:hidden ${source ? "" : "invisible"}`}>
+            <span data-mono className="shrink-0">{progress.label}</span>
+            <span className="bg-smudge/30 h-1 min-w-0 flex-1 overflow-hidden rounded-full">
+              <span className="burn-bar block h-full origin-left" style={{ transform: `scaleX(${progress.pct / 100})` }} />
+            </span>
+            <span className="text-char w-10 shrink-0 text-right font-bold tabular-nums">{progress.pct}%</span>
           </div>
           <div data-xscroll className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2 phone:max-h-[52dvh] phone:overflow-y-auto [@media(max-height:500px)]:w-1/2 [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:border-t-0 [@media(max-height:500px)]:pt-0">
             <div className={`grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-7 [@media(max-height:500px)]:grid-cols-2 ${adjust ? "" : "phone:hidden"}`}>

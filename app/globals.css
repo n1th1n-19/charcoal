@@ -97,6 +97,11 @@ svg {
   transform-origin: center;
 }
 
+.burn-bar {
+  background: linear-gradient(90deg, #8f3a1e, #e2571e 70%, #ffb15e);
+  transition: transform 180ms ease-out;
+}
+
 .ash-spark {
   position: absolute;
   bottom: 0;
