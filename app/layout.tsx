@@ -42,12 +42,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.6 1.7" result="tooth" />
             <feComposite in="d" in2="tooth" operator="in" />
           </filter>
-          <filter id="sumi" x="-8%" y="-8%" width="116%" height="116%">
+          <filter id="sumi" x="-10%" y="-10%" width="120%" height="120%">
             <feTurbulence type="fractalNoise" baseFrequency="0.05 0.3" numOctaves="3" seed="4" result="n" />
-            <feDisplacementMap in="SourceGraphic" in2="n" scale="5" result="d" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="4" result="d" />
             <feTurbulence type="fractalNoise" baseFrequency="0.09 0.8" numOctaves="2" seed="9" />
-            <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3 2" result="dry" />
+            <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.75" result="dry" />
             <feComposite in="d" in2="dry" operator="in" />
+          </filter>
+          <filter id="wash" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="4" seed="8" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="26" result="d" />
+            <feGaussianBlur in="d" stdDeviation="1.4" result="b" />
+            <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="3" />
+            <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.3 1.45" result="grain" />
+            <feComposite in="b" in2="grain" operator="in" />
           </filter>
         </svg>
         {children}

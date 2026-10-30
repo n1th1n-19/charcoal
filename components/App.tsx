@@ -154,16 +154,16 @@ export default function App() {
     };
   }, [goTo]);
 
-  // Arriving at a station paints its scene stroke by stroke, stamps the seal, then writes the words.
+  // Arriving at a station bleeds its washes onto the sheet, adds the strokes and writes the words.
   useEffect(() => {
     if (reducedMotion()) return;
     const root = scroller.current!.children[active];
     const strokes = root.querySelectorAll("[data-ink]");
     if (!strokes.length) return;
     const run = createTimeline()
-      .add(svg.createDrawable(strokes), { draw: ["0 0", "0 1"], duration: 900, delay: stagger(170), ease: "inOutSine" }, 0)
-      .add(root.querySelectorAll("[data-hanko]"), { scale: [1.9, 1], opacity: [0, 1], rotate: [-16, -4], duration: 340, ease: "outBack" }, 500)
-      .add(root.querySelectorAll("[data-word]"), { opacity: [0, 1], translateY: [5, 0], delay: stagger(45), duration: 340, ease: "outQuad" }, 700);
+      .add(root.querySelectorAll("[data-wash]"), { opacity: [0, 1], scale: [0.86, 1], duration: 1300, delay: stagger(240), ease: "outQuad" }, 0)
+      .add(svg.createDrawable(strokes), { draw: ["0 0", "0 1"], duration: 800, delay: stagger(140), ease: "inOutSine" }, 700)
+      .add(root.querySelectorAll("[data-word]"), { opacity: [0, 1], translateY: [5, 0], delay: stagger(45), duration: 340, ease: "outQuad" }, 1300);
     return () => void run.revert();
   }, [active]);
 
@@ -482,7 +482,7 @@ export default function App() {
               <img src="/icons/apple-touch-icon.png" alt="" width={32} height={32} className="rounded-sm" />
               Charcoal
             </h1>
-            <p data-mono className="text-title short:text-xl flat:text-2xl md:text-display shrink-0 truncate leading-[1.05] font-bold">
+            <p data-mono className={`text-title short:text-xl flat:text-2xl md:text-display shrink-0 leading-[1.05] font-bold ${source ? "truncate" : ""}`}>
               {source ? source.name : "Lay an image on the sheet"}
             </p>
             <p className="text-soft short:hidden max-w-[40ch]">

@@ -39,7 +39,7 @@ export default function Terms() {
         <li>ONNX Runtime Web, MIT</li>
         <li>anime.js, MIT</li>
         <li>Next.js and React, MIT</li>
-        <li>Recursive and Noto Serif JP typefaces, SIL Open Font License</li>
+        <li>Recursive typeface, SIL Open Font License</li>
         <li>
           Charcoal photo by Dati Bendo, European Commission, © European Union, 2026,{" "}
           <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, resized, cropped and converted to ASCII art

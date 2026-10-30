@@ -10,7 +10,6 @@ Charcoal includes or loads the following work. Each stays under its own license.
 | Next.js | Framework | MIT, Copyright Vercel, Inc. | https://github.com/vercel/next.js |
 | React | Framework | MIT, Copyright Meta Platforms, Inc. and affiliates | https://github.com/facebook/react |
 | Recursive | Typeface | SIL OFL 1.1 | https://github.com/arrowtype/recursive |
-| Noto Serif JP | Four seal glyphs in `public/fonts/seal.woff2` | SIL OFL 1.1, see `public/fonts/OFL.txt` | https://github.com/notofonts/noto-cjk |
 
 ## Images
 

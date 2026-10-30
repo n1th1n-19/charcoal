@@ -15,7 +15,7 @@ A private, in-browser tool that turns one image into detailed ASCII art. The the
 Recursive for everything. Its MONO axis changes as the burn front passes. Art uses the `ui-monospace` stack to match exported SVG.
 
 ## Motion
-anime.js. Things enter warm and settle. Each station paints its sumi-e scene, stamps a seal, then writes its words. Reduced motion shows the finished state.
+anime.js. Things enter warm and settle. Each station bleeds its ink wash scene onto the sheet, then writes its words. Reduced motion shows the finished state.
 
 ## Color
 Paper and char are the base. Sanguine is the accent, ochre and leaf support it, and ember belongs to the seam.
