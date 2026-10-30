@@ -526,15 +526,15 @@ export default function App() {
             <Story chapter={0} className="mt-2 phone:order-4 short:mt-0" />
           </div>
           <div className="relative min-h-0 flex-1 self-stretch flat:overflow-hidden phone:order-2 phone:flex phone:items-center phone:justify-center phone:overflow-hidden">
-            <div className="absolute -top-6 -right-10 size-72 opacity-40 md:size-[26rem]"><WoodSection /></div>
+            {!source && <div className="absolute -top-6 -right-10 size-72 opacity-40 md:size-[26rem]"><WoodSection /></div>}
             {source ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={source.url} alt={`Your image, ${source.name}`} className="relative mx-auto mt-[6vh] max-h-[70%] rotate-[-1.2deg] phone:mt-0 phone:max-h-full flat:mt-0 flat:max-h-full border-8 border-sheet object-contain shadow-[2px_3px_0_#1b1a1955]" />
+              <img src={source.url} alt={`Your image, ${source.name}`} className="relative z-5 mx-auto mt-[6vh] max-h-[70%] object-contain phone:mt-0 phone:max-h-full flat:mt-0 flat:max-h-full" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img ref={specimenArt} src="/loader.webp" alt="A lump of charcoal drawn in colored ASCII characters" className="relative mt-[6vh] max-h-full w-full object-contain phone:mt-0 flat:mt-0" />
             )}
-            <div className="absolute right-4 bottom-2 h-16 w-52 rotate-[-4deg] max-md:hidden"><Sticks /></div>
+            {!source && <div className="absolute right-4 bottom-2 h-16 w-52 rotate-[-4deg] max-md:hidden"><Sticks /></div>}
           </div>
         </section>
 
