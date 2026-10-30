@@ -17,6 +17,7 @@ const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and lift", "C
 const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
 const MIN_STAGE_MS = 240;
 const LOADER_MIN_MS = 1400;
+const SAVING_MIN_MS = 900;
 const READY = { label: "Drawing ready", pct: 100 };
 const BURN_NEUTRAL = 550;
 
@@ -85,6 +86,8 @@ export default function App() {
   const [pngScale, setPngScale] = useState(2);
   const [copied, setCopied] = useState(false);
   const [adjust, setAdjust] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [saving, setSaving] = useState("");
   const [progress, setProgress] = useState(READY);
   const [art, setArt] = useState<{ cols: number; rows: number } | null>(null);
   const [download, setDownload] = useState("");
@@ -437,13 +440,24 @@ export default function App() {
   const saveSvg = (text: string, suffix: string) => save(new Blob([text], { type: "image/svg+xml" }), `${exportName}${suffix}.svg`);
   const pngScales = output ? [1, 2, 3, 4].filter((n) => output.cols * CELL_W * n <= MAX_CANVAS_SIDE && output.rows * CELL_H * n <= MAX_CANVAS_SIDE) : [];
 
-  function savePng() {
+  // The short pause lets the label paint before heavy work, and the hold keeps it readable.
+  async function saveAs(key: string, make: () => void | Promise<void>) {
+    setSaving(key);
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      await make();
+    } finally {
+      setTimeout(() => setSaving(""), SAVING_MIN_MS);
+    }
+  }
+
+  async function savePng() {
     if (!output) return;
     const { fill, ink } = GROUNDS[settings.ground];
     const img = rasterize(output.cols, output.rows, output.cells, output.rgb, settings.mode, fill, ink, pngScale);
     const c = new OffscreenCanvas(img.width, img.height);
     c.getContext("2d")!.putImageData(img, 0, 0);
-    void c.convertToBlob({ type: "image/png" }).then((b) => save(b, `${exportName}.png`));
+    save(await c.convertToBlob({ type: "image/png" }), `${exportName}.png`);
   }
 
   async function copyText() {
@@ -514,12 +528,19 @@ export default function App() {
             </p>
             <div className="flex flex-wrap gap-3 phone:order-3 phone:grid phone:grid-cols-2 phone:gap-2">
               <label className="bg-char text-sheet focus-within:outline-sanguine inline-flex min-h-12 phone:justify-center phone:px-2 cursor-pointer items-center px-5 font-semibold focus-within:outline-2 focus-within:outline-offset-2">
-                Choose image
+                <span className="min-w-[7rem] text-center">{picking ? "Opening files" : "Choose image"}</span>
                 <input
                   type="file"
                   accept="image/*"
                   className="sr-only"
+                  onClick={(e) => {
+                    setPicking(true);
+                    const done = () => setPicking(false);
+                    window.addEventListener("focus", done, { once: true });
+                    e.currentTarget.addEventListener("cancel", done, { once: true });
+                  }}
                   onChange={(e) => {
+                    setPicking(false);
                     const file = e.target.files?.[0];
                     if (file) take(file, file.name);
                   }}
@@ -551,6 +572,10 @@ export default function App() {
             <Story chapter={1} className="wide:col-start-1 wide:row-start-1 wide:self-center" />
             <div className="flex flex-col gap-2 wide:col-start-3 wide:row-start-1 wide:self-center">
             <p data-mono className="text-title short:text-2xl font-bold tabular-nums">{temp} C</p>
+            <Progress
+              name={download ? "Downloading model" : lit >= 0 ? STAGES[lit] : "Waiting for an image"}
+              pct={download ? progress.pct : Math.round(((temp - 20) / 880) * 100)}
+            />
             {download && <p role="status" className="text-label text-soft">{download}</p>}
             <p className="text-label text-soft hidden phone:block flat:block" aria-live="polite">{lit >= 0 ? STAGES[lit] : "Waiting for an image"}</p>
             <ol className="grid grid-cols-2 gap-x-4 phone:hidden flat:hidden md:grid-cols-1 md:gap-y-1">
@@ -581,13 +606,7 @@ export default function App() {
               />
             </div>
           </div>
-          <div role="status" aria-label={`${progress.label}, ${progress.pct} percent`} className={`text-label text-soft flex shrink-0 items-center gap-3 [@media(max-height:500px)]:hidden ${source ? "" : "invisible"}`}>
-            <span data-mono className="shrink-0">{progress.label}</span>
-            <span className="bg-smudge/30 h-1 min-w-0 flex-1 overflow-hidden rounded-full">
-              <span className="burn-bar block h-full origin-left" style={{ transform: `scaleX(${progress.pct / 100})` }} />
-            </span>
-            <span className="text-char w-10 shrink-0 text-right font-bold tabular-nums">{progress.pct}%</span>
-          </div>
+          <Progress label={progress.label} pct={progress.pct} className={`[@media(max-height:500px)]:hidden ${source ? "" : "invisible"}`} />
           <div data-xscroll className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2 phone:max-h-[52dvh] phone:overflow-y-auto [@media(max-height:500px)]:w-1/2 [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:border-t-0 [@media(max-height:500px)]:pt-0">
             <div className={`grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-7 [@media(max-height:500px)]:grid-cols-2 ${adjust ? "" : "phone:hidden"}`}>
             {sliders.map(([label, key, min, max, step]) => (
@@ -682,11 +701,11 @@ export default function App() {
                   {animatedBytes > 5 * KB * KB ? "Very large. GitHub and browsers may struggle with it. Try fewer columns or Smaller file." : "Large file. Fewer columns or Smaller file will reduce it."}
                 </p>
               )}
-              <button type="button" onClick={() => saveSvg(svgs.animated, "-animated")} className="bg-char text-sheet mt-auto min-h-11 px-2 font-semibold whitespace-nowrap short:text-sm flat:col-start-2 flat:row-start-1 flat:mt-0 flat:text-sm">
-                Download animated, {sizeLabel(animatedBytes)}
+              <button type="button" disabled={!!saving} onClick={() => saveAs("animated", () => saveSvg(svgs.animated, "-animated"))} className="bg-char text-sheet mt-auto min-h-11 px-2 font-semibold whitespace-nowrap short:text-sm flat:col-start-2 flat:row-start-1 flat:mt-0 flat:text-sm">
+                {saving === "animated" ? "Downloading" : `Download animated, ${sizeLabel(animatedBytes)}`}
               </button>
-              <button type="button" onClick={() => saveSvg(svgs.still, "")} className="border-char min-h-11 border px-2 font-medium whitespace-nowrap short:text-sm flat:col-start-2 flat:row-start-2 flat:text-sm">
-                Download still, {sizeLabel(stillBytes)}
+              <button type="button" disabled={!!saving} onClick={() => saveAs("still", () => saveSvg(svgs.still, ""))} className="border-char min-h-11 border px-2 font-medium whitespace-nowrap short:text-sm flat:col-start-2 flat:row-start-2 flat:text-sm">
+                {saving === "still" ? "Downloading" : `Download still, ${sizeLabel(stillBytes)}`}
               </button>
             </li>
             <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:rotate-[1deg] wide:w-auto wide:flex-1 wide:basis-0">
@@ -699,8 +718,8 @@ export default function App() {
                   ))}
                 </select>
               </label>
-              <button type="button" onClick={savePng} className="bg-char text-sheet mt-auto min-h-11 px-4 font-semibold">
-                Download PNG
+              <button type="button" disabled={!!saving} onClick={() => saveAs("png", savePng)} className="bg-char text-sheet mt-auto min-h-11 px-4 font-semibold">
+                {saving === "png" ? "Downloading" : "Download PNG"}
               </button>
             </li>
             <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:-rotate-[0.6deg] wide:w-auto wide:flex-1 wide:basis-0">
@@ -709,8 +728,8 @@ export default function App() {
               <button type="button" onClick={copyText} className="border-char mt-auto min-h-11 border px-4 font-medium">
                 {copied ? "Copied" : "Copy text"}
               </button>
-              <button type="button" onClick={() => save(new Blob([toText(output ?? { cols: 0, rows: 0, cells: new Uint8Array(), rgb: new Uint8Array() })], { type: "text/plain" }), `${exportName}.txt`)} className="bg-char text-sheet min-h-11 px-4 font-semibold">
-                Download text
+              <button type="button" disabled={!!saving} onClick={() => saveAs("text", () => save(new Blob([toText(output ?? { cols: 0, rows: 0, cells: new Uint8Array(), rgb: new Uint8Array() })], { type: "text/plain" }), `${exportName}.txt`))} className="bg-char text-sheet min-h-11 px-4 font-semibold">
+                {saving === "text" ? "Downloading" : "Download text"}
               </button>
             </li>
           </ul>
@@ -767,3 +786,14 @@ function LegalLinks() {
   );
 }
 
+function Progress({ label, name, pct, className = "" }: { label?: string; name?: string; pct: number; className?: string }) {
+  return (
+    <div role="status" aria-label={`${label ?? name}, ${pct} percent`} className={`text-label text-soft flex shrink-0 items-center gap-3 ${className}`}>
+      {label && <span data-mono className="shrink-0">{label}</span>}
+      <span className="bg-smudge/30 h-1 min-w-0 flex-1 overflow-hidden rounded-full">
+        <span className="burn-bar block h-full origin-left" style={{ transform: `scaleX(${pct / 100})` }} />
+      </span>
+      <span className="text-char w-10 shrink-0 text-right font-bold tabular-nums">{pct}%</span>
+    </div>
+  );
+}
