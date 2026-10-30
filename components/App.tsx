@@ -1,0 +1,619 @@
+"use client";
+
+import { animate, stagger } from "animejs";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Seam, { markSides, seamX, SEAM_EVENT } from "@/components/Seam";
+import { Kiln, Sticks, WoodSection } from "@/components/Sketches";
+import { Output, toSvg, toText } from "@/lib/exports";
+import { reducedMotion } from "@/lib/motion";
+import * as P from "@/lib/pipeline";
+import { CELL_H, CELL_W, GROUNDS, Mode, rasterize } from "@/lib/render";
+import type { Reply, Settings } from "@/lib/worker";
+
+const STATIONS = ["Specimen", "Kiln", "Easel", "Portfolio"];
+const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and lift", "Composite", "Sharpen", "Contrast", "Resample", "Sample color", "Map to glyphs"];
+const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
+const MIN_STAGE_MS = 240;
+const MAX_CANVAS_SIDE = 16384;
+const KB = 1024;
+
+const sizeLabel = (bytes: number) => (bytes < KB * KB ? `${Math.round(bytes / KB)} KB` : `${(bytes / KB / KB).toFixed(1)} MB`);
+
+function save(blob: Blob, name: string) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+const DEFAULTS: Settings = {
+  cols: 240,
+  gamma: 0.8,
+  floor: 0.8,
+  contrast: 1.05,
+  clahe: 2.6,
+  sharpen: 140,
+  invert: true,
+  removeBg: false,
+  mode: "Original colors",
+  ground: "dark",
+};
+
+// The specimen drawing is real pipeline output, cropped to the rock.
+function specimen(img: HTMLImageElement) {
+  const [w, h] = [560, 330];
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(img, 90, 85, w, h, 0, 0, w, h);
+  const gray = P.grayscale(ctx.getImageData(0, 0, w, h).data, w, h);
+  const cols = 130;
+  const rows = P.rowsFor(w, h, cols);
+  const grid = P.resize(P.unsharp(P.lift(P.clahe(gray, w, h, 2.6)), w, h), w, h, cols, rows);
+  const cells = P.mapGlyphs(grid, 1.18, 0.8);
+  return Array.from({ length: rows }, (_, y) => Array.from(cells.subarray(y * cols, (y + 1) * cols), (i) => P.RAMP[i]).join(""));
+}
+
+export default function App() {
+  const scroller = useRef<HTMLElement>(null);
+  const mono = useRef<HTMLCanvasElement>(null);
+  const color = useRef<HTMLCanvasElement>(null);
+  const smudge = useRef<HTMLCanvasElement>(null);
+  const needle = useRef<HTMLSpanElement>(null);
+  const worker = useRef<Worker | null>(null);
+  const bitmaps = useRef<{ mono: ImageBitmap; color: ImageBitmap } | null>(null);
+  const committed = useRef(DEFAULTS);
+  const request = useRef(0);
+  const burning = useRef({ on: false, done: false, queue: [] as string[], heat: { c: 20 } });
+
+  const [active, setActive] = useState(0);
+  const [source, setSource] = useState<{ url: string; name: string; w: number; h: number } | null>(null);
+  const [settings, setSettings] = useState(DEFAULTS);
+  const [past, setPast] = useState<Settings[]>([]);
+  const [future, setFuture] = useState<Settings[]>([]);
+  const [output, setOutput] = useState<Output | null>(null);
+  const [reveal, setReveal] = useState(true);
+  const [smaller, setSmaller] = useState(false);
+  const [pngScale, setPngScale] = useState(2);
+  const [copied, setCopied] = useState(false);
+  const [art, setArt] = useState<{ cols: number; rows: number } | null>(null);
+  const [download, setDownload] = useState("");
+  const [lit, setLit] = useState(-1);
+  const [temp, setTemp] = useState(20);
+  const [empty, setEmpty] = useState<string[]>([]);
+  const [error, setError] = useState("");
+
+  const goTo = useCallback((index: number) => {
+    const el = scroller.current;
+    if (!el) return;
+    const i = Math.max(0, Math.min(STATIONS.length - 1, index));
+    const left = (el.children[i] as HTMLElement).offsetLeft;
+    if (reducedMotion()) {
+      el.scrollLeft = left;
+      return;
+    }
+    animate(el, { scrollLeft: left, duration: 900, ease: "inOutCubic" });
+  }, []);
+
+  function clipToSeam() {
+    const canvas = mono.current;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    canvas.style.clipPath = `inset(0 ${Math.max(0, r.right - seamX())}px 0 0)`;
+  }
+
+  // The sheet is continuous: wheel slides it on x, and stations fade to erased ghosts behind you.
+  useEffect(() => {
+    const el = scroller.current!;
+    const onWheel = (e: WheelEvent) => {
+      if ((e.target as Element).closest("[data-xscroll]")) return;
+      e.preventDefault();
+      el.scrollLeft += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as Element).closest("input, select, [role=slider]")) return;
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (step) setActive((a) => (goTo(a + step), a));
+    };
+    const onScroll = () => {
+      const middle = el.scrollLeft + el.clientWidth / 2;
+      let nearest = 0;
+      [...el.children].forEach((child, i) => {
+        const s = child as HTMLElement;
+        const gap = Math.abs(s.offsetLeft + s.offsetWidth / 2 - middle) / s.offsetWidth;
+        if (gap < 0.5) nearest = i;
+        s.style.opacity = reducedMotion() ? "1" : String(Math.max(0.16, 1.25 - gap * 1.1));
+      });
+      setActive(nearest);
+      if (needle.current) needle.current.style.left = `${(el.scrollLeft / (el.scrollWidth - el.clientWidth)) * 100}%`;
+      markSides();
+      clipToSeam();
+    };
+    onScroll();
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("keydown", onKey);
+    window.addEventListener(SEAM_EVENT, clipToSeam);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(SEAM_EVENT, clipToSeam);
+    };
+  }, [goTo]);
+
+  // Dragging a finger or pointer over the sheet leaves a smudge that slowly lifts.
+  useEffect(() => {
+    if (reducedMotion()) return;
+    const c = smudge.current!;
+    const ctx = c.getContext("2d")!;
+    const size = () => {
+      c.width = innerWidth;
+      c.height = innerHeight;
+    };
+    size();
+    const onMove = (e: PointerEvent) => {
+      const g = ctx.createRadialGradient(e.clientX, e.clientY, 0, e.clientX, e.clientY, 46);
+      g.addColorStop(0, "rgba(27,26,25,0.05)");
+      g.addColorStop(1, "rgba(27,26,25,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(e.clientX - 46, e.clientY - 46, 92, 92);
+    };
+    const lift = setInterval(() => {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0,0,0,0.04)";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.globalCompositeOperation = "source-over";
+    }, 120);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("resize", size);
+    return () => {
+      clearInterval(lift);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("resize", size);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.ready = "";
+    const img = new Image();
+    img.onload = () => {
+      setEmpty(specimen(img));
+    };
+    img.src = "/sample/charcoal.jpeg";
+  }, []);
+
+  // Draws itself in, row by row, like a stick working down the sheet.
+  useEffect(() => {
+    if (reducedMotion() || !empty.length) return;
+    const rows = document.querySelectorAll("[data-specimen] > div");
+    const run = animate(rows, { opacity: [0, 1], translateX: [-10, 0], delay: stagger(26), duration: 500, ease: "outQuad" });
+    return () => void run.revert();
+  }, [empty]);
+
+  // Stages arrive far faster than the eye, so the kiln plays them at a readable pace.
+  useEffect(() => {
+    const w = new Worker(new URL("../lib/worker.ts", import.meta.url), { type: "module" });
+    worker.current = w;
+    w.onmessage = (e: MessageEvent<Reply>) => {
+      const m = e.data;
+      const b = burning.current;
+      if (m.type === "stage") {
+        if (b.on) b.queue.push(m.name);
+      } else if (m.type === "download") {
+        setDownload(m.total ? `Downloading model, ${Math.round(m.loaded / 1e6)} of ${Math.round(m.total / 1e6)} MB` : "Downloading model");
+      } else if (m.type === "error") {
+        setDownload("");
+        setError(m.message);
+        if (m.model) setSettings((s) => ({ ...s, removeBg: false }));
+        b.done = true;
+      } else if (m.type === "done") {
+        setDownload("");
+        if (m.id !== request.current) {
+          m.mono.close();
+          m.color.close();
+          return;
+        }
+        bitmaps.current?.mono.close();
+        bitmaps.current?.color.close();
+        bitmaps.current = { mono: m.mono, color: m.color };
+        setArt({ cols: m.cols, rows: m.rows });
+        setOutput({ cols: m.cols, rows: m.rows, cells: m.cells, rgb: m.rgb });
+        // ponytail: test hook for acceptance, removed in step 6.
+        (window as unknown as { __charcoal: unknown }).__charcoal = { cols: m.cols, rows: m.rows, cells: m.cells, ms: m.ms };
+        clipToSeam();
+        b.done = true;
+      }
+    };
+    w.onerror = (e) => setError(`The image worker stopped: ${e.message}`);
+    const play = setInterval(() => {
+      const b = burning.current;
+      if (!b.on) return;
+      const name = b.queue.shift();
+      if (name) {
+        const i = STAGES.indexOf(name);
+        setLit(i);
+        const target = 20 + (880 * (i + 1)) / STAGES.length;
+        if (reducedMotion()) setTemp(Math.round(target));
+        else animate(b.heat, { c: target, duration: MIN_STAGE_MS, ease: "linear", onUpdate: () => setTemp(Math.round(b.heat.c)) });
+      } else if (b.done) {
+        b.on = false;
+        goTo(2);
+      }
+    }, MIN_STAGE_MS);
+    return () => {
+      clearInterval(play);
+      w.terminate();
+    };
+  }, [goTo]);
+
+  // Drawn at the sheet's real pixel size with high-quality scaling. Letting CSS shrink the
+  // full-size bitmap skips rows unevenly and shows as horizontal stripes.
+  useEffect(() => {
+    const paint = () => {
+      const pair = bitmaps.current;
+      if (!pair) return;
+      for (const [ref, bitmap] of [[mono, pair.mono], [color, pair.color]] as const) {
+        const c = ref.current!;
+        c.width = Math.max(1, Math.round(c.clientWidth * devicePixelRatio));
+        c.height = Math.max(1, Math.round(c.clientHeight * devicePixelRatio));
+        const ctx = c.getContext("2d")!;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(bitmap, 0, 0, c.width, c.height);
+      }
+      clipToSeam();
+    };
+    paint();
+    const watch = new ResizeObserver(paint);
+    watch.observe(mono.current!);
+    return () => watch.disconnect();
+  }, [output]);
+
+  useEffect(() => {
+    if (!source || !worker.current) return;
+    worker.current.postMessage({ type: "render", id: ++request.current, settings });
+  }, [settings, source]);
+
+  function burn() {
+    burning.current = { on: true, done: false, queue: [], heat: burning.current.heat };
+    burning.current.heat.c = 20;
+    setTemp(20);
+    setLit(-1);
+    goTo(1);
+  }
+
+  async function take(file: File | Blob, name: string) {
+    if (!file.type.startsWith("image/")) {
+      setError(`${name} is not an image. Use JPEG, PNG, WebP or GIF.`);
+      return;
+    }
+    setError("");
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      setError(`This browser could not read ${name}. Try saving it as JPEG or PNG.`);
+      return;
+    }
+    const { width: w, height: h } = bitmap;
+    burn();
+    worker.current!.postMessage({ type: "load", bitmap }, [bitmap]);
+    setPast([]);
+    setFuture([]);
+    committed.current = settings;
+    setSource({ url: URL.createObjectURL(file), name, w, h });
+  }
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const file = e.clipboardData?.files[0];
+      if (file) take(file, "the pasted image");
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  });
+
+  const trySample = async () => take(await (await fetch("/sample/charcoal.jpeg")).blob(), "charcoal.jpeg");
+  const update = (patch: Partial<Settings>) => {
+    if (patch.removeBg) burn();
+    setSettings((s) => ({ ...s, ...patch }));
+  };
+
+  // A slider commits when released, so one drag is one undo step.
+  const commit = useCallback((next: Settings) => {
+    if (JSON.stringify(next) === JSON.stringify(committed.current)) return;
+    const before = committed.current;
+    setPast((p) => [...p, before]);
+    setFuture([]);
+    committed.current = next;
+  }, []);
+  const change = (patch: Partial<Settings>) => {
+    update(patch);
+    commit({ ...settings, ...patch });
+  };
+  const restore = useCallback((next: Settings) => {
+    committed.current = next;
+    setSettings(next);
+  }, []);
+  const undo = useCallback(() => {
+    if (!past.length) return;
+    const current = committed.current;
+    setFuture((f) => [current, ...f]);
+    restore(past[past.length - 1]);
+    setPast((p) => p.slice(0, -1));
+  }, [past, restore]);
+  const redo = useCallback(() => {
+    if (!future.length) return;
+    const current = committed.current;
+    setPast((p) => [...p, current]);
+    restore(future[0]);
+    setFuture((f) => f.slice(1));
+  }, [future, restore]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  const exportName = source ? `${source.name.replace(/\.[^.]+$/, "")}-charcoal` : "charcoal";
+  const svgOptions = { mode: settings.mode, ground: settings.ground, reveal, smaller };
+  const svg = useMemo(() => (output && active === 3 ? toSvg(output, svgOptions) : ""), [output, active, settings.mode, settings.ground, reveal, smaller]);
+  const svgBytes = useMemo(() => new Blob([svg]).size, [svg]);
+  const pngScales = output ? [1, 2, 3, 4].filter((n) => output.cols * CELL_W * n <= MAX_CANVAS_SIDE && output.rows * CELL_H * n <= MAX_CANVAS_SIDE) : [];
+
+  function savePng() {
+    if (!output) return;
+    const { fill, ink } = GROUNDS[settings.ground];
+    const img = rasterize(output.cols, output.rows, output.cells, output.rgb, settings.mode, fill, ink, pngScale);
+    const c = new OffscreenCanvas(img.width, img.height);
+    c.getContext("2d")!.putImageData(img, 0, 0);
+    void c.convertToBlob({ type: "image/png" }).then((b) => save(b, `${exportName}.png`));
+  }
+
+  async function copyText() {
+    await navigator.clipboard.writeText(toText(output!));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+
+  const sliders: [string, keyof Settings, number, number, number][] = [
+    ["Columns", "cols", 40, 400, 10],
+    ["Gamma", "gamma", 0.4, 1.8, 0.01],
+    ["Contrast", "contrast", 0.6, 2, 0.01],
+    ["White floor", "floor", 0.4, 1, 0.01],
+    ["Sharpen", "sharpen", 0, 300, 10],
+    ["CLAHE strength", "clahe", 0, 6, 0.1],
+  ];
+
+  const station = "station relative flex h-full shrink-0 w-dvw lg:w-[78vw] transition-opacity duration-200 p-4 md:p-10";
+
+  return (
+    <div
+      className="flex h-dvh flex-col"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) take(file, file.name);
+      }}
+    >
+      <canvas ref={smudge} aria-hidden="true" className="pointer-events-none fixed inset-0 z-1" />
+      {error && (
+        <p role="alert" className="bg-sheet text-sanguine border-sanguine fixed top-3 left-1/2 z-40 max-w-[90vw] -translate-x-1/2 border px-4 py-2">
+          {error}
+        </p>
+      )}
+      <main ref={scroller} className="sheet flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <section aria-label="Specimen" className={`${station} flex-col gap-4 md:flex-row md:items-center md:gap-10`}>
+          <div className="relative flex shrink-0 flex-col gap-3 md:w-[38%]">
+            <h1 data-mono className="text-title md:text-display leading-[1.02] font-bold">
+              {source ? source.name : "Lay an image on the sheet"}
+            </h1>
+            <p className="text-soft max-w-[40ch]">
+              {source
+                ? `${source.w} by ${source.h}. Kept at full resolution, on this device only.`
+                : "It goes into the kiln as a picture and comes out as a charcoal drawing made of text. Nothing is uploaded or stored."}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <label className="bg-char text-sheet focus-within:outline-sanguine inline-flex min-h-12 cursor-pointer items-center px-5 font-semibold focus-within:outline-2 focus-within:outline-offset-2">
+                Choose image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) take(file, file.name);
+                  }}
+                />
+              </label>
+              <button type="button" onClick={trySample} className="border-char hover:bg-sheet min-h-12 border-2 px-5 font-medium">
+                Try the charcoal sample
+              </button>
+            </div>
+            <p className="text-label text-soft">Or paste, or drop anywhere on the sheet.</p>
+          </div>
+          <div className="relative min-h-0 flex-1 self-stretch">
+            <div className="absolute -top-6 -right-10 size-72 opacity-40 md:size-[26rem]"><WoodSection /></div>
+            {source ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={source.url} alt={`Your image, ${source.name}`} className="relative mx-auto mt-[6vh] max-h-[70%] rotate-[-1.2deg] border-8 border-sheet object-contain shadow-[2px_3px_0_#1b1a1955]" />
+            ) : (
+              <pre data-specimen aria-hidden="true" className="font-art text-char relative mt-[8vh] w-fit text-[clamp(3.6px,0.82vw,9px)] leading-[1.14] font-semibold">
+                {empty.map((row, y) => (
+                  <div key={y}>{row}</div>
+                ))}
+              </pre>
+            )}
+            <div className="absolute right-4 bottom-2 h-16 w-52 rotate-[-4deg]"><Sticks /></div>
+          </div>
+        </section>
+
+        <section aria-label="Kiln" className={`${station} flex-col gap-4 md:flex-row-reverse md:items-center`}>
+          <div className="min-h-0 flex-1 self-stretch"><Kiln temp={temp} /></div>
+          <div className="flex shrink-0 flex-col gap-2 md:w-64">
+            <p data-mono className="text-title font-bold tabular-nums">{temp} C</p>
+            {download && <p role="status" className="text-label text-soft">{download}</p>}
+            <ol className="grid grid-cols-2 gap-x-4 md:grid-cols-1 md:gap-y-1" aria-live="polite">
+              {STAGES.map((s, i) => (i === 0 && !settings.removeBg ? null : (
+                <li key={s} aria-current={i === lit ? "step" : undefined} className={i === lit ? "text-sanguine font-bold" : i < lit ? "line-through decoration-1" : "text-soft"}>
+                  {s}
+                </li>
+              )))}
+            </ol>
+          </div>
+        </section>
+
+        <section aria-label="Easel" className={`${station} flex-col gap-3`}>
+          <div className="flex min-h-0 flex-1 items-center justify-center @container-size">
+            {!source && <p className="text-soft">The drawing lands here once an image has been through the kiln.</p>}
+            <div
+              className={`relative z-5 ${source ? "" : "hidden"}`}
+              style={art ? { aspectRatio: `${art.cols * CELL_W} / ${art.rows * CELL_H}`, width: `min(100cqw, 100cqh * ${(art.cols * CELL_W) / (art.rows * CELL_H)})` } : undefined}
+            >
+              <canvas ref={color} className="absolute inset-0 h-full w-full" aria-hidden="true" />
+              <canvas
+                ref={mono}
+                className="absolute inset-0 h-full w-full"
+                role="img"
+                aria-label="ASCII drawing"
+              />
+            </div>
+          </div>
+          <div className="border-char flex shrink-0 items-center gap-4 border-t-2 pt-3">
+            <div data-xscroll className="strip flex min-w-0 flex-1 items-center gap-6 overflow-x-auto">
+            {sliders.map(([label, key, min, max, step]) => (
+              <label key={key} className="text-label text-soft flex min-h-11 w-36 shrink-0 flex-col justify-center">
+                <span className="flex justify-between">
+                  <span data-mono>{label}</span>
+                  <span className="text-char tabular-nums">{String(settings[key])}</span>
+                </span>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={Number(settings[key])}
+                  onChange={(e) => update({ [key]: Number(e.target.value) })}
+                  onPointerUp={() => commit(settings)}
+                  onKeyUp={() => commit(settings)}
+                  className="accent-sanguine w-full"
+                />
+              </label>
+            ))}
+            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+              <input type="checkbox" checked={settings.invert} onChange={(e) => change({ invert: e.target.checked, gamma: e.target.checked ? 0.8 : 1.18 })} className="accent-sanguine size-5" />
+              Invert
+            </label>
+            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+              Color
+              <select value={settings.mode} onChange={(e) => change({ mode: e.target.value as Mode })} className="bg-sheet text-char border-char min-h-11 border px-2">
+                {MODES.map((m) => <option key={m}>{m}</option>)}
+              </select>
+            </label>
+            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+              Ground
+              <select value={settings.ground} onChange={(e) => change({ ground: e.target.value as Settings["ground"] })} className="bg-sheet text-char border-char min-h-11 border px-2">
+                <option value="dark">Dark</option>
+                <option value="white">White</option>
+              </select>
+            </label>
+            <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
+              <input type="checkbox" checked={settings.removeBg} onChange={(e) => change({ removeBg: e.target.checked })} className="accent-sanguine size-5" />
+              Remove background (176 MB download, once)
+            </label>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button type="button" onClick={undo} disabled={!past.length} className="border-char hover:bg-sheet min-h-11 border px-3 font-medium disabled:opacity-40">
+                Undo
+              </button>
+              <button type="button" onClick={redo} disabled={!future.length} className="border-char hover:bg-sheet min-h-11 border px-3 font-medium disabled:opacity-40">
+                Redo
+              </button>
+              <button type="button" onClick={() => goTo(3)} disabled={!output} className="bg-char text-sheet min-h-11 px-5 font-semibold disabled:opacity-40">
+                Done
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section aria-label="Portfolio" className={`${station} flex-col justify-center gap-6`}>
+          <h2 data-mono className="text-title md:text-display font-bold">Fix it and take it</h2>
+          {!output && <p className="text-soft">Finish a drawing on the easel and it will be ready here.</p>}
+          <ul className={`flex flex-wrap gap-5 ${output ? "" : "hidden"}`}>
+            <li className="bg-sheet flex w-72 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-1.5deg" }}>
+              <span data-mono className="text-heading font-semibold">SVG</span>
+              <span className="text-label text-soft">Scales anywhere. {sizeLabel(svgBytes)}.</span>
+              <label className="text-label flex min-h-11 items-center gap-2">
+                <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} className="accent-sanguine size-5" />
+                Reveal row by row, works on GitHub
+              </label>
+              {settings.mode === "Original colors" && (
+                <label className="text-label flex min-h-11 items-center gap-2">
+                  <input type="checkbox" checked={smaller} onChange={(e) => setSmaller(e.target.checked)} className="accent-sanguine size-5" />
+                  Smaller file, fewer colors
+                </label>
+              )}
+              {svgBytes > KB * KB && (
+                <p role="status" className="text-label text-sanguine">
+                  {svgBytes > 5 * KB * KB ? "Very large. GitHub and browsers may struggle with it. Try fewer columns or Smaller file." : "Large file. Fewer columns or Smaller file will reduce it."}
+                </p>
+              )}
+              <button type="button" onClick={() => save(new Blob([svg], { type: "image/svg+xml" }), `${exportName}.svg`)} className="bg-char text-sheet mt-auto min-h-11 px-4 font-semibold">
+                Download SVG
+              </button>
+            </li>
+            <li className="bg-sheet flex w-64 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "1deg" }}>
+              <span data-mono className="text-heading font-semibold">PNG</span>
+              <label className="text-label text-soft flex min-h-11 items-center justify-between gap-2">
+                Scale
+                <select value={pngScale} onChange={(e) => setPngScale(Number(e.target.value))} className="bg-sheet text-char border-char min-h-11 border px-2">
+                  {pngScales.map((n) => (
+                    <option key={n} value={n}>{n}x, {output ? `${output.cols * CELL_W * n} by ${output.rows * CELL_H * n}` : ""}</option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" onClick={savePng} className="bg-char text-sheet mt-auto min-h-11 px-4 font-semibold">
+                Download PNG
+              </button>
+            </li>
+            <li className="bg-sheet flex w-64 flex-col gap-3 p-5 shadow-[3px_4px_0_#1b1a1944]" style={{ rotate: "-0.6deg" }}>
+              <span data-mono className="text-heading font-semibold">Plain text</span>
+              <span className="text-label text-soft">No color: text files cannot hold it.</span>
+              <button type="button" onClick={copyText} className="border-char mt-auto min-h-11 border px-4 font-medium">
+                {copied ? "Copied" : "Copy text"}
+              </button>
+              <button type="button" onClick={() => save(new Blob([toText(output ?? { cols: 0, rows: 0, cells: new Uint8Array(), rgb: new Uint8Array() })], { type: "text/plain" }), `${exportName}.txt`)} className="bg-char text-sheet min-h-11 px-4 font-semibold">
+                Download text
+              </button>
+            </li>
+          </ul>
+        </section>
+      </main>
+
+      <nav aria-label="Stations" className="ruler bg-sheet relative z-5 grid shrink-0 grid-cols-4 pb-[env(safe-area-inset-bottom)]">
+        <span ref={needle} aria-hidden="true" className="bg-sanguine absolute top-0 h-4 w-0.5" />
+        {STATIONS.map((name, i) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => goTo(i)}
+            aria-current={i === active ? "location" : undefined}
+            className={`text-label min-h-12 pt-3 ${i === active ? "font-bold" : "text-soft hover:text-char"}`}
+          >
+            <span data-mono>{name}</span>
+          </button>
+        ))}
+      </nav>
+      <Seam />
+    </div>
+  );
+}
