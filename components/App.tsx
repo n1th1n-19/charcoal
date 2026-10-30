@@ -494,10 +494,10 @@ export default function App() {
               />
             </div>
           </div>
-          <div className="border-char flex shrink-0 items-center gap-4 border-t-2 pt-3">
-            <div data-xscroll className="strip flex min-w-0 flex-1 items-center gap-6 overflow-x-auto">
+          <div className="border-char flex shrink-0 flex-col gap-1 border-t-2 pt-2">
+            <div className="grid grid-cols-2 gap-x-5 sm:grid-cols-3 lg:grid-cols-6">
             {sliders.map(([label, key, min, max, step]) => (
-              <label key={key} className="text-label text-soft flex min-h-11 w-36 shrink-0 flex-col justify-center">
+              <label key={key} className="text-label text-soft flex min-h-11 min-w-0 flex-col justify-center">
                 <span className="flex justify-between">
                   <span data-mono>{label}</span>
                   <span className="text-char tabular-nums">{String(settings[key])}</span>
@@ -515,6 +515,8 @@ export default function App() {
                 />
               </label>
             ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
               <input type="checkbox" checked={settings.invert} onChange={(e) => change({ invert: e.target.checked, gamma: e.target.checked ? 0.8 : 1.18 })} className="accent-sanguine size-5" />
               Invert
@@ -534,19 +536,19 @@ export default function App() {
             </label>
             <label className="text-label text-soft flex min-h-11 shrink-0 items-center gap-2">
               <input type="checkbox" checked={settings.removeBg} onChange={(e) => change({ removeBg: e.target.checked })} className="accent-sanguine size-5" />
-              Remove background (176 MB download, once)
+              Remove background (176 MB once)
             </label>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button type="button" onClick={undo} disabled={!past.length} className="border-char hover:bg-sheet min-h-11 border px-3 font-medium disabled:opacity-40">
-                Undo
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <button type="button" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo" className="border-char hover:bg-sheet grid size-11 place-items-center border disabled:opacity-40">
+                <UndoIcon />
               </button>
-              <button type="button" onClick={redo} disabled={!future.length} className="border-char hover:bg-sheet min-h-11 border px-3 font-medium disabled:opacity-40">
-                Redo
+              <button type="button" onClick={redo} disabled={!future.length} aria-label="Redo" title="Redo" className="border-char hover:bg-sheet grid size-11 place-items-center border disabled:opacity-40">
+                <UndoIcon flip />
               </button>
               <button type="button" onClick={() => goTo(3)} disabled={!output} className="bg-char text-sheet min-h-11 px-5 font-semibold disabled:opacity-40">
                 Done
               </button>
+            </div>
             </div>
           </div>
         </section>
@@ -621,5 +623,14 @@ export default function App() {
       </nav>
       <Seam />
     </div>
+  );
+}
+
+function UndoIcon({ flip }: { flip?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={flip ? { transform: "scaleX(-1)" } : undefined}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </svg>
   );
 }
