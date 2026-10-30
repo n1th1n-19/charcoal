@@ -29,7 +29,11 @@ export default function Terms() {
       <p>{NAME} is provided as is, without warranties of any kind. Results, including background removal, may be imperfect.</p>
       <h2>Limitation of liability</h2>
       <p>To the extent the law allows, we are not liable for any loss arising from your use of {NAME}.</p>
-      <h2>Open source components</h2>
+      <h2>Open source</h2>
+      <p>
+        {NAME} is open source under the Apache License 2.0. If you reuse its code, keep the attribution in its NOTICE file.
+        It includes these components:
+      </p>
       <ul>
         <li>U-2-Net model, Apache-2.0</li>
         <li>ONNX Runtime Web, MIT</li>
