@@ -1,13 +1,37 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Recursive } from "next/font/google";
+import { DESCRIPTION, NAME, SITE_URL, TAGLINE } from "@/lib/site";
 import "./globals.css";
 
 const recursive = Recursive({ subsets: ["latin"], axes: ["MONO", "CASL"], variable: "--font-recursive" });
 
 export const metadata: Metadata = {
-  title: "Charcoal",
-  description: "Turn an image into detailed ASCII art. Everything runs in your browser.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: `${NAME}: ${TAGLINE}`, template: `%s | ${NAME}` },
+  description: DESCRIPTION,
+  applicationName: NAME,
+  keywords: ["ASCII art", "image to ASCII", "ASCII art generator", "photo to text art", "SVG ASCII art", "GitHub profile art"],
+  alternates: { canonical: "/" },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
+  openGraph: {
+    type: "website",
+    siteName: NAME,
+    title: `${NAME}: ${TAGLINE}`,
+    description: DESCRIPTION,
+    url: "/",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "A lump of charcoal drawn in ASCII characters" }],
+  },
+  twitter: { card: "summary_large_image", title: `${NAME}: ${TAGLINE}`, description: DESCRIPTION, images: ["/og.png"] },
 };
+
+export const viewport: Viewport = { themeColor: "#d9d5cb" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

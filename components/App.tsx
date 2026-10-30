@@ -2,6 +2,7 @@
 
 import { animate, stagger } from "animejs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import Seam, { markSides, seamX, SEAM_EVENT } from "@/components/Seam";
 import { Kiln, Sticks, WoodSection } from "@/components/Sketches";
 import { Output, toSvg, toText } from "@/lib/exports";
@@ -425,9 +426,14 @@ export default function App() {
       <main ref={scroller} className="sheet flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
         <section aria-label="Specimen" className={`${station} flex-col gap-4 md:flex-row md:items-center md:gap-10`}>
           <div className="relative flex shrink-0 flex-col gap-3 md:w-[38%]">
-            <h1 data-mono className="text-title md:text-display leading-[1.02] font-bold">
-              {source ? source.name : "Lay an image on the sheet"}
+            <h1 data-mono className="text-heading flex items-center gap-2 font-bold">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/apple-touch-icon.png" alt="" width={32} height={32} className="rounded-sm" />
+              Charcoal
             </h1>
+            <p data-mono className="text-title md:text-display leading-[1.02] font-bold">
+              {source ? source.name : "Lay an image on the sheet"}
+            </p>
             <p className="text-soft max-w-[40ch]">
               {source
                 ? `${source.w} by ${source.h}. Kept at full resolution, on this device only.`
@@ -451,6 +457,7 @@ export default function App() {
               </button>
             </div>
             <p className="text-label text-soft">Or paste, or drop anywhere on the sheet.</p>
+            <LegalLinks />
           </div>
           <div className="relative min-h-0 flex-1 self-stretch">
             <div className="absolute -top-6 -right-10 size-72 opacity-40 md:size-[26rem]"><WoodSection /></div>
@@ -608,6 +615,7 @@ export default function App() {
               </button>
             </li>
           </ul>
+          <LegalLinks />
         </section>
       </main>
 
@@ -636,5 +644,14 @@ function UndoIcon({ flip }: { flip?: boolean }) {
       <path d="M9 14 4 9l5-5" />
       <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
     </svg>
+  );
+}
+
+function LegalLinks() {
+  return (
+    <p className="text-label text-soft flex gap-4">
+      <Link href="/privacy" className="inline-flex min-h-6 items-center underline">Privacy</Link>
+      <Link href="/terms" className="inline-flex min-h-6 items-center underline">Terms</Link>
+    </p>
   );
 }
