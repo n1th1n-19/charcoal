@@ -44,7 +44,12 @@ export default function Instruments({ temp }: { temp: number }) {
     let visible = false;
 
     const frame = (ms: number) => {
-      const dt = Math.min(ms - last, 50) / 16.67;
+      // Twenty updates a second is plenty here, and the grain filter is costly to redraw.
+      if (ms - last < 50) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      const dt = Math.min(ms - last, 100) / 16.67;
       last = ms;
       const h = heat.current;
 

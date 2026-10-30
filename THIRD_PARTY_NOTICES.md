@@ -14,7 +14,7 @@ Charcoal includes or loads the following work. Each stays under its own license.
 
 ## Images
 
-The sample image `public/sample/charcoal.jpg`, the app icons and the social image are based on
+The sample image `public/sample/charcoal.jpg`, the app icons, the loading art and the social image are based on
 [Charcoal 7](https://commons.wikimedia.org/wiki/File:Charcoal_7.jpg) by Dati Bendo, European
 Commission, © European Union, 2026, licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The original was resized, cropped and

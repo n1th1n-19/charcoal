@@ -8,7 +8,6 @@ import { Kiln, Sticks, WoodSection } from "@/components/Sketches";
 import Story from "@/components/Story";
 import { Output, toSvg, toText } from "@/lib/exports";
 import { reducedMotion } from "@/lib/motion";
-import * as P from "@/lib/pipeline";
 import { CELL_H, CELL_W, GROUNDS, Mode, rasterize } from "@/lib/render";
 import type { Reply, Settings } from "@/lib/worker";
 
@@ -16,8 +15,8 @@ const STATIONS = ["Specimen", "Kiln", "Easel", "Portfolio"];
 const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and lift", "Composite", "Sharpen", "Contrast", "Resample", "Sample color", "Map to glyphs"];
 const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
 const MIN_STAGE_MS = 240;
+const LOADER_MIN_MS = 1400;
 const BURN_NEUTRAL = 550;
-const SPECIMEN_BACKDROP = 150;
 
 // Phones run out of memory far sooner than desktops. ponytail: fixed caps, measure real devices to refine.
 const safePixels = () => (navigator.maxTouchPoints > 0 ? 16e6 : 64e6);
@@ -58,45 +57,12 @@ const DEFAULTS: Settings = {
 // The sample is a dark subject on a pale ground, so ink on white reads as a positive.
 const SAMPLE: Settings = { ...DEFAULTS, invert: false, gamma: 1.18, ground: "white" };
 
-// The specimen drawing is real pipeline output, tuned by hand for the sample photo.
-function specimen(img: HTMLImageElement) {
-  const [w, h] = [img.naturalWidth, img.naturalHeight];
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(img, 0, 0);
-  const { data } = ctx.getImageData(0, 0, w, h);
-  const cols = 400;
-  const rows = P.rowsFor(w, h, cols);
-  const gray = P.grayscale(data, w, h);
-  const tuned = P.contrast(P.unsharp(P.lift(P.clahe(gray, w, h, 4.4)), w, h, 2, 300, 2), 2);
-  const cells = P.mapGlyphs(P.resize(tuned, w, h, cols, rows), 1.8, 1);
-  // The photo's backdrop is far paler than the charcoal, so a plain threshold cuts it away.
-  const light = P.resize(gray, w, h, cols, rows);
-  for (let i = 0; i < cells.length; i++) if (light[i] > SPECIMEN_BACKDROP) cells[i] = 0;
-  const rgb = new Uint8Array(w * h * 3);
-  for (let i = 0; i < w * h; i++) rgb.set(data.subarray(i * 4, i * 4 + 3), i * 3);
-  const { fill, ink } = GROUNDS.white;
-  const art = rasterize(cols, rows, cells, P.resize(rgb, w, h, cols, rows, 3), "Original colors", fill, ink);
-  // Glyphs were blended onto white. Undoing that blend leaves them on transparency.
-  const px = art.data;
-  for (let i = 0; i < px.length; i += 4) {
-    const a = 255 - Math.min(px[i], px[i + 1], px[i + 2]);
-    px[i + 3] = a;
-    if (a) for (let c = 0; c < 3; c++) px[i + c] = 255 - ((255 - px[i + c]) * 255) / a;
-  }
-  const out = new OffscreenCanvas(art.width, art.height);
-  out.getContext("2d")!.putImageData(art, 0, 0);
-  return out;
-}
-
 export default function App() {
   const scroller = useRef<HTMLElement>(null);
   const mono = useRef<HTMLCanvasElement>(null);
   const color = useRef<HTMLCanvasElement>(null);
   const smudge = useRef<HTMLCanvasElement>(null);
-  const specimenArt = useRef<HTMLCanvasElement>(null);
+  const specimenArt = useRef<HTMLImageElement>(null);
   const needle = useRef<HTMLSpanElement>(null);
   const worker = useRef<Worker | null>(null);
   const bitmaps = useRef<{ mono: ImageBitmap; color: ImageBitmap } | null>(null);
@@ -119,7 +85,6 @@ export default function App() {
   const [download, setDownload] = useState("");
   const [lit, setLit] = useState(-1);
   const [temp, setTemp] = useState(20);
-  const [empty, setEmpty] = useState<OffscreenCanvas | null>(null);
   const [error, setError] = useState("");
   const [tooLarge, setTooLarge] = useState<{ file: File | Blob; name: string; w: number; h: number } | null>(null);
 
@@ -233,45 +198,18 @@ export default function App() {
     };
   }, []);
 
+  // Held briefly so the loader reads as a moment instead of a flash.
   useEffect(() => {
-    document.documentElement.dataset.ready = "";
-    const img = new Image();
-    img.onload = () => {
-      setEmpty(specimen(img));
-    };
-    img.src = "/sample/charcoal.jpg";
+    const ready = setTimeout(() => (document.documentElement.dataset.ready = ""), reducedMotion() ? 0 : LOADER_MIN_MS);
+    return () => clearTimeout(ready);
   }, []);
 
   // Draws itself in, top to bottom, like a stick working down the sheet.
   useEffect(() => {
-    const c = specimenArt.current;
-    if (!c || !empty) return;
-    const paint = () => {
-      c.width = Math.max(1, Math.round(c.clientWidth * devicePixelRatio));
-      c.height = Math.round((c.width * empty.height) / empty.width);
-      // Halving in stages keeps thin glyph rows from aliasing into horizontal bands.
-      let step: OffscreenCanvas = empty;
-      while (step.width / 2 > c.width) {
-        const half = new OffscreenCanvas(Math.ceil(step.width / 2), Math.ceil(step.height / 2));
-        const h = half.getContext("2d")!;
-        h.imageSmoothingQuality = "high";
-        h.drawImage(step, 0, 0, half.width, half.height);
-        step = half;
-      }
-      const ctx = c.getContext("2d")!;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(step, 0, 0, c.width, c.height);
-    };
-    paint();
-    const watch = new ResizeObserver(paint);
-    watch.observe(c);
-    if (reducedMotion()) return () => watch.disconnect();
-    const run = animate(c, { clipPath: ["inset(0 0 100% 0)", "inset(0 0 0% 0)"], duration: 2200, ease: "inOutSine" });
-    return () => {
-      watch.disconnect();
-      run.revert();
-    };
-  }, [empty, source]);
+    if (reducedMotion() || !specimenArt.current) return;
+    const run = animate(specimenArt.current, { clipPath: ["inset(0 0 100% 0)", "inset(0 0 0% 0)"], duration: 2200, delay: LOADER_MIN_MS, ease: "inOutSine" });
+    return () => void run.revert();
+  }, [source]);
 
   // Stages arrive far faster than the eye, so the kiln plays them at a readable pace.
   useEffect(() => {
@@ -577,7 +515,8 @@ export default function App() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={source.url} alt={`Your image, ${source.name}`} className="relative mx-auto mt-[6vh] max-h-[70%] rotate-[-1.2deg] phone:mt-0 phone:max-h-full flat:mt-0 flat:max-h-full border-8 border-sheet object-contain shadow-[2px_3px_0_#1b1a1955]" />
             ) : (
-              <canvas ref={specimenArt} role="img" aria-label="A lump of charcoal drawn in colored ASCII characters" className="relative mt-[6vh] max-h-full w-full object-contain phone:mt-0 flat:mt-0" />
+              // eslint-disable-next-line @next/next/no-img-element
+              <img ref={specimenArt} src="/loader.webp" alt="A lump of charcoal drawn in colored ASCII characters" className="relative mt-[6vh] max-h-full w-full object-contain phone:mt-0 flat:mt-0" />
             )}
             <div className="absolute right-4 bottom-2 h-16 w-52 rotate-[-4deg] max-md:hidden"><Sticks /></div>
           </div>

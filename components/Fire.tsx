@@ -134,7 +134,7 @@ function useShader(frag: string, heat: number, onFrame?: (el: HTMLCanvasElement,
     let visible = false;
     const frame = (ms: number) => {
       eased += (target.current - eased) * 0.06;
-      const dpr = Math.min(devicePixelRatio, 1.5);
+      const dpr = Math.min(devicePixelRatio, 1);
       const w = Math.round(el.clientWidth * dpr);
       const h = Math.round(el.clientHeight * dpr);
       if (el.width !== w || el.height !== h) {
@@ -165,7 +165,7 @@ function useShader(frag: string, heat: number, onFrame?: (el: HTMLCanvasElement,
 }
 
 const flickerGlow = (el: HTMLCanvasElement, eased: number, ms: number) => {
-  const glow = el.closest("svg")?.querySelector<SVGElement>(".fire-glow");
+  const glow = el.closest(".kiln-stage")?.querySelector<HTMLElement>(".fire-glow");
   if (glow) glow.style.opacity = String((0.3 + 0.7 * eased) * (0.62 + 0.2 * Math.sin(ms / 90) * Math.sin(ms / 233)));
 };
 

@@ -81,17 +81,9 @@ export function Kiln({ temp }: { temp: number }) {
     }
   }
   return (
-    <svg viewBox="0 0 660 500" role="img" aria-label={`Kiln at ${temp} degrees`} className="h-full w-full overflow-visible">
-      <defs>
-        <radialGradient id="glow">
-          <stop offset="0" stopColor="#ff8a1f" stopOpacity="0.75" />
-          <stop offset="0.5" stopColor="#e2571e" stopOpacity="0.3" />
-          <stop offset="1" stopColor="#e2571e" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <foreignObject x="96" y="-210" width="300" height="250">
-        <Smoke heat={(temp - 20) / 880} />
-      </foreignObject>
+    <div className="flex h-full w-full items-center justify-center @container-size">
+    <div className="kiln-stage relative aspect-[660/500]" style={{ width: "min(100cqw, 100cqh * 1.32)" }}>
+    <svg viewBox="0 0 660 500" role="img" aria-label={`Kiln at ${temp} degrees`} className="absolute inset-0 h-full w-full overflow-visible">
       <g className="rough" fill="none" stroke="#1b1a19" strokeLinecap="round">
         <path d="M84 440C70 240 110 96 250 84c150-12 190 150 176 356z" fill="#b9b3a6" strokeWidth="6" />
         <path d={bricks} strokeWidth="1.3" />
@@ -105,12 +97,19 @@ export function Kiln({ temp }: { temp: number }) {
         <circle cx="500" cy="120" r="46" fill="#e8e5dc" strokeWidth="4" />
         <path d="M500 166v34" strokeWidth="5" />
       </g>
-      <ellipse className="fire-glow" cx="250" cy="370" rx="250" ry="190" fill="url(#glow)" opacity="0" style={{ mixBlendMode: "multiply" }} />
       <path d="M130 440V322A120 62 0 0 1 370 322V440Z" fill="#1b1a19" className="rough" />
-      <foreignObject x="130" y="260" width="240" height="180">
-        <Fire heat={(temp - 20) / 880} />
-      </foreignObject>
+    </svg>
+    <div className="fire-glow pointer-events-none absolute -inset-[12%] opacity-0" style={{ background: "radial-gradient(ellipse 36% 34% at 42% 64%, #ff8a1f55, #e2571e22 55%, transparent)" }} />
+    <div className="pointer-events-none absolute" style={{ left: "14.55%", top: "-42%", width: "45.45%", height: "50%" }}>
+      <Smoke heat={(temp - 20) / 880} />
+    </div>
+    <div className="pointer-events-none absolute" style={{ left: "19.7%", top: "52%", width: "36.36%", height: "36%" }}>
+      <Fire heat={(temp - 20) / 880} />
+    </div>
+    <svg viewBox="0 0 660 500" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
       <Instruments temp={temp} />
     </svg>
+    </div>
+    </div>
   );
 }

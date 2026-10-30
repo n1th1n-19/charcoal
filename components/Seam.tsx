@@ -32,7 +32,6 @@ export default function Seam() {
   const ratio = useRef(0.5);
 
   useEffect(() => {
-    const sweep = { x: 0 };
     const sync = () => {
       handle.current?.setAttribute("aria-valuenow", String(Math.round(ratio.current * 100)));
       markSides();
@@ -45,26 +44,8 @@ export default function Seam() {
     const onResize = () => toSeam(ratio.current * innerWidth);
     window.addEventListener("resize", onResize);
 
-    if (reducedMotion()) {
-      toSeam(innerWidth / 2);
-      return () => window.removeEventListener("resize", onResize);
-    }
-    const flicker = animate(document.documentElement, {
-      "--glow": [0.7, 1.4],
-      duration: 900,
-      ease: "inOutSine",
-      alternate: true,
-      loop: true,
-    });
-    animate(sweep, {
-      x: innerWidth / 2,
-      ease: spring({ bounce: 0.3, duration: 900 }),
-      onUpdate: () => toSeam(sweep.x),
-    });
-    return () => {
-      flicker.revert();
-      window.removeEventListener("resize", onResize);
-    };
+    toSeam(innerWidth / 2);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   const place = (px: number) => {

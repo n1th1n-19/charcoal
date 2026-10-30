@@ -178,7 +178,18 @@ svg {
   z-index: 30;
   pointer-events: none;
   background: linear-gradient(#ffb15e, #e2571e 40%, #8f3a1e 70%, #e2571e);
-  box-shadow: -7px 0 calc(12px * var(--glow, 1)) 3px #1b1a1988, 2px 0 calc(8px * var(--glow, 1)) 1px #e2571e77;
+  box-shadow: -7px 0 12px 3px #1b1a1988;
+}
+.seam-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: 2px 0 12px 2px #e2571e77;
+  animation: seam-glow 1.8s ease-in-out infinite alternate;
+}
+@keyframes seam-glow {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
 }
 .seam-handle {
   position: fixed;
@@ -227,32 +238,145 @@ html[data-ready] .burn {
   opacity: 0;
   visibility: hidden;
 }
+.burn-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
 .burn-art {
   position: relative;
-  font-family: var(--font-art);
-  font-size: clamp(5px, 1.5vw, 12px);
-  line-height: 1.15;
-  white-space: pre;
+  width: min(84vw, 42rem);
+  aspect-ratio: 1105 / 679;
 }
-.burn-wood {
-  color: #7a5024;
+/* A wipe made of two opposite transforms, so it runs on the GPU with no repaints. */
+.wipe,
+.wipe img,
+.burn-front {
+  will-change: transform;
+  animation-duration: 3.6s;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  animation-iteration-count: infinite;
 }
-.burn-ink {
+.wipe {
   position: absolute;
   inset: 0;
-  color: var(--color-char);
-  background: var(--color-paper);
-  animation: burn 2.6s ease-in-out infinite alternate;
+  overflow: hidden;
 }
-@keyframes burn {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
+.wipe img {
+  display: block;
+  width: 100%;
+}
+.wipe-wood { animation-name: wood-out; }
+.wipe-wood img {
+  filter: sepia(1) saturate(1.8) brightness(0.8);
+  animation-name: wood-in;
+}
+.wipe-ink { animation-name: ink-out; }
+.wipe-ink img {
+  filter: brightness(0.5) contrast(1.5);
+  animation-name: ink-in;
+}
+.burn-front {
+  position: absolute;
+  inset: -6% 0;
+  animation-name: front;
+}
+.burn-front::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -2px;
+  width: 5px;
+  border-radius: 999px;
+  background: linear-gradient(transparent, #ffb15e 18%, #e2571e 55%, #ffb15e 82%, transparent);
+  box-shadow: 0 0 22px 9px #e2571e77;
+}
+@keyframes ink-out {
+  0% { transform: translateX(-100%); opacity: 1; }
+  78%, 92% { transform: none; opacity: 1; }
+  100% { transform: none; opacity: 0; }
+}
+@keyframes ink-in {
+  0% { transform: translateX(100%); }
+  78%, 100% { transform: none; }
+}
+@keyframes wood-out {
+  0% { transform: none; opacity: 0.6; }
+  78%, 92% { transform: translateX(100%); opacity: 0.6; }
+  93% { transform: none; opacity: 0; }
+  100% { transform: none; opacity: 0.6; }
+}
+@keyframes wood-in {
+  0% { transform: none; }
+  78%, 92% { transform: translateX(-100%); }
+  93%, 100% { transform: none; }
+}
+@keyframes front {
+  0% { transform: none; opacity: 0; }
+  6% { opacity: 1; }
+  72% { opacity: 1; }
+  78%, 100% { transform: translateX(100%); opacity: 0; }
+}
+.burn-name {
+  margin-top: 10px;
+  font-size: var(--text-heading);
+  font-weight: 700;
+}
+.burn-note {
+  color: var(--color-soft);
+  font-size: var(--text-label);
+  animation: burn-note 1.8s ease-in-out infinite alternate;
+}
+@keyframes burn-note {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
+}
+.burn-sparks {
+  position: absolute;
+  inset: 50% 0 0;
+  pointer-events: none;
+}
+.burn-veil {
+  position: absolute;
+  inset: 0 50% 0 0;
+  pointer-events: none;
+}
+.burn-seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  background: linear-gradient(#ffb15e, #e2571e 40%, #8f3a1e 70%, #e2571e);
+  box-shadow: -7px 0 12px 3px #1b1a1988, 2px 0 8px 1px #e2571e77;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .burn-ink {
+  .wipe,
+  .wipe img,
+  .burn-front,
+  .seam-line::after {
     animation: none;
-    clip-path: inset(0 50% 0 0);
+  }
+  .wipe-ink {
+    transform: translateX(-50%);
+  }
+  .wipe-ink img {
+    transform: translateX(50%);
+  }
+  .wipe-wood {
+    opacity: 0.6;
+    transform: translateX(50%);
+  }
+  .wipe-wood img {
+    transform: translateX(-50%);
+  }
+  .burn-front {
+    transform: translateX(50%);
+  }
+  .burn-note {
+    animation: none;
   }
   [data-drift],
   .ash-spark {
