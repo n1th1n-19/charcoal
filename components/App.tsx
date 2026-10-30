@@ -12,7 +12,7 @@ import { REPO_URL } from "@/lib/site";
 import { CELL_H, CELL_W, GROUNDS, Mode, rasterize } from "@/lib/render";
 import type { Reply, Settings } from "@/lib/worker";
 
-const STATIONS = ["Specimen", "Kiln", "Easel", "Portfolio"];
+const STATIONS = ["Specimen", "Kiln", "Easel", "Fixative"];
 const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and lift", "Composite", "Sharpen", "Contrast", "Resample", "Sample color", "Map to glyphs"];
 const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
 const MIN_STAGE_MS = 240;
@@ -64,6 +64,8 @@ export default function App() {
   const color = useRef<HTMLCanvasElement>(null);
   const smudge = useRef<HTMLCanvasElement>(null);
   const specimenArt = useRef<HTMLImageElement>(null);
+  const finalArt = useRef<HTMLCanvasElement>(null);
+  const finalBox = useRef<HTMLDivElement>(null);
   const needle = useRef<HTMLSpanElement>(null);
   const worker = useRef<Worker | null>(null);
   const bitmaps = useRef<{ mono: ImageBitmap; color: ImageBitmap } | null>(null);
@@ -280,11 +282,24 @@ export default function App() {
         ctx.imageSmoothingQuality = "high";
         ctx.drawImage(bitmap, 0, 0, c.width, c.height);
       }
+      const final = finalArt.current!;
+      const box = finalBox.current!;
+      const fit = Math.min(box.clientWidth / pair.color.width, box.clientHeight / pair.color.height);
+      if (fit > 0) {
+        final.style.width = `${pair.color.width * fit}px`;
+        final.style.height = `${pair.color.height * fit}px`;
+        final.width = Math.round(pair.color.width * fit * devicePixelRatio);
+        final.height = Math.round(pair.color.height * fit * devicePixelRatio);
+        const ctx = final.getContext("2d")!;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(pair.color, 0, 0, final.width, final.height);
+      }
       clipToSeam();
     };
     paint();
     const watch = new ResizeObserver(paint);
     watch.observe(mono.current!);
+    watch.observe(finalBox.current!);
     return () => watch.disconnect();
   }, [output]);
 
@@ -523,10 +538,11 @@ export default function App() {
           </div>
         </section>
 
-        <section aria-label="Kiln" className={`${station} flex-col gap-4 flat:flex-row-reverse flat:p-3 md:flex-row-reverse md:items-center`}>
-          <div className="min-h-0 flex-1 self-stretch pt-[16vh] phone:pt-[9dvh] flat:pt-[14dvh]"><Kiln temp={temp} /></div>
-          <div className="flex shrink-0 flex-col gap-2 flat:h-full flat:w-1/2 flat:overflow-y-auto md:w-72">
-            <Story chapter={1} />
+        <section aria-label="Kiln" className={`${station} flex-col gap-4 flat:flex-row-reverse flat:p-3 md:flex-row-reverse md:items-center wide:grid wide:grid-cols-[17rem_minmax(0,1fr)_17rem] wide:gap-6`}>
+          <div className="min-h-0 flex-1 self-stretch pt-[16vh] phone:pt-[9dvh] flat:pt-[14dvh] wide:col-start-2 wide:row-start-1 wide:translate-x-[12%]"><Kiln temp={temp} /></div>
+          <div className="flex shrink-0 flex-col gap-2 flat:h-full flat:w-1/2 flat:overflow-y-auto md:w-72 wide:contents">
+            <Story chapter={1} className="wide:col-start-1 wide:row-start-1 wide:self-center" />
+            <div className="flex flex-col gap-2 wide:col-start-3 wide:row-start-1 wide:self-center">
             <p data-mono className="text-title short:text-2xl font-bold tabular-nums">{temp} C</p>
             {download && <p role="status" className="text-label text-soft">{download}</p>}
             <p className="text-label text-soft hidden phone:block flat:block" aria-live="polite">{lit >= 0 ? STAGES[lit] : "Waiting for an image"}</p>
@@ -537,6 +553,7 @@ export default function App() {
                 </li>
               )))}
             </ol>
+            </div>
           </div>
         </section>
 
@@ -619,12 +636,21 @@ export default function App() {
           </div>
         </section>
 
-        <section aria-label="Portfolio" className={`${station} flex-col justify-center gap-4 overflow-y-auto flat:gap-2 flat:p-3 md:gap-6 [@media(max-height:640px)]:justify-start`}>
+        <section aria-label="Fixative" className={`${station} flex-col justify-center gap-4 overflow-y-auto flat:gap-2 flat:p-3 md:gap-6 wide:grid wide:grid-cols-2 wide:grid-rows-[minmax(0,1fr)_auto] wide:gap-x-10 [@media(max-height:640px)]:justify-start`}>
+          <div className="flex flex-col gap-4 flat:gap-2 md:gap-6 wide:self-center">
           <h2 data-mono className="text-title short:text-2xl md:text-display font-bold">Fix it and take it</h2>
           <Story chapter={3} className="[@media(max-height:500px)]:hidden" />
           {!output && <p className="text-soft">Finish a drawing on the easel and it will be ready here.</p>}
-          <ul data-xscroll className={`strip flex shrink-0 snap-x snap-mandatory gap-3 max-md:overflow-x-auto max-md:py-1 md:flex-wrap md:gap-5 [@media(max-height:500px)]:flex-nowrap [@media(max-height:500px)]:overflow-x-auto ${output ? "" : "hidden"}`}>
-            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] flat:grid flat:w-[86vw] flat:grid-cols-2 flat:content-start flat:gap-x-4 flat:gap-y-1 flat:rotate-0 flat:p-3 md:w-80 md:-rotate-[1.5deg]">
+          </div>
+          <div ref={finalBox} className="hidden min-h-0 items-center justify-center wide:flex">
+            <canvas ref={finalArt} role="img" aria-label="Your finished drawing" className={output ? "" : "hidden"} />
+            {!output && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/loader.webp" alt="" className="max-h-full max-w-full object-contain opacity-30" />
+            )}
+          </div>
+          <ul data-xscroll className={`strip flex shrink-0 snap-x wide:col-span-2 wide:flex-nowrap snap-mandatory gap-3 max-md:overflow-x-auto max-md:py-1 md:flex-wrap md:gap-5 [@media(max-height:500px)]:flex-nowrap [@media(max-height:500px)]:overflow-x-auto ${output ? "" : "hidden"}`}>
+            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] flat:grid flat:w-[86vw] flat:grid-cols-2 flat:content-start flat:gap-x-4 flat:gap-y-1 flat:rotate-0 flat:p-3 md:w-80 md:-rotate-[1.5deg] wide:w-auto wide:flex-[1.3] wide:basis-0">
               <span data-mono className="text-heading font-semibold">SVG</span>
               <span className="text-label text-soft short:hidden flat:hidden">Scales anywhere. Animated reveals row by row, and plays on GitHub.</span>
               <label className="text-label flex min-h-11 items-center gap-2">
@@ -649,7 +675,7 @@ export default function App() {
                 Download still, {sizeLabel(stillBytes)}
               </button>
             </li>
-            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:rotate-[1deg]">
+            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:rotate-[1deg] wide:w-auto wide:flex-1 wide:basis-0">
               <span data-mono className="text-heading font-semibold">PNG</span>
               <label className="text-label text-soft flex min-h-11 items-center justify-between gap-2">
                 Scale
@@ -663,7 +689,7 @@ export default function App() {
                 Download PNG
               </button>
             </li>
-            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:-rotate-[0.6deg]">
+            <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 md:-rotate-[0.6deg] wide:w-auto wide:flex-1 wide:basis-0">
               <span data-mono className="text-heading font-semibold">Plain text</span>
               <span className="text-label text-soft">No color: text files cannot hold it.</span>
               <button type="button" onClick={copyText} className="border-char mt-auto min-h-11 border px-4 font-medium">

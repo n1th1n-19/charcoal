@@ -2,6 +2,7 @@
 
 /* Portrait phones, and the shorter ones like the iPhone SE. */
 @custom-variant phone (@media (max-width: 767px) and (min-height: 501px));
+@custom-variant wide (@media (min-width: 1024px) and (min-height: 640px));
 @custom-variant flat (@media (max-height: 500px));
 @custom-variant short (@media (max-width: 767px) and (min-height: 501px) and (max-height: 700px));
 
