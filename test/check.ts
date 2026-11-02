@@ -33,7 +33,7 @@ import { PRESETS, renderFrame, renderLoop } from "../lib/scene3d.ts";
 
 {
   const [cols, rows] = [24, 12];
-  const [w, h] = [cols * 2, rows * 2];
+  const [w, h] = [cols * 3, rows * 3];
   const lum = new Uint8Array(w * h);
   const rgb = new Uint8Array(w * h * 3);
   const depth = new Uint8Array(w * h);
@@ -86,4 +86,99 @@ import { PRESETS, renderFrame, renderLoop } from "../lib/scene3d.ts";
     rmSync(dir, { recursive: true, force: true });
   }
   console.log(`ok: ${PRESETS.length} 3D presets and 4 exports`);
+}
+
+// GIF: decode what the encoder writes, and check every frame comes back pixel for pixel.
+import { encodeGif } from "../lib/gif.ts";
+
+function decodeGif(b: Uint8Array) {
+  const w = b[6] | (b[7] << 8);
+  const h = b[8] | (b[9] << 8);
+  const table = b.subarray(13, 13 + 768);
+  let p = 13 + 768;
+  const frames: Uint8Array[] = [];
+  let canvas = new Uint8Array(w * h * 3);
+  let transparent = -1;
+  let loops = -1;
+  while (b[p] !== 0x3b) {
+    if (b[p] === 0x21) {
+      if (b[p + 1] === 0xf9) transparent = b[p + 3] & 1 ? b[p + 6] : -1;
+      if (b[p + 1] === 0xff) loops = b[p + 16] | (b[p + 17] << 8);
+      p += 2;
+      while (b[p]) p += b[p] + 1;
+      p++;
+      continue;
+    }
+    const [x0, y0, fw, fh] = [0, 2, 4, 6].map((o) => b[p + 1 + o] | (b[p + 2 + o] << 8));
+    p += 10;
+    const min = b[p++];
+    const data: number[] = [];
+    while (b[p]) {
+      data.push(...b.subarray(p + 1, p + 1 + b[p]));
+      p += b[p] + 1;
+    }
+    p++;
+    // Standard LZW decoding.
+    const clear = 1 << min;
+    let size = min + 1;
+    let dict: number[][] = [];
+    const reset = () => {
+      dict = Array.from({ length: clear + 2 }, (_, i) => [i]);
+      size = min + 1;
+    };
+    reset();
+    const out: number[] = [];
+    let prev: number[] | null = null;
+    let bit = 0;
+    for (;;) {
+      let code = 0;
+      for (let i = 0; i < size; i++, bit++) code |= ((data[bit >> 3] >> (bit & 7)) & 1) << i;
+      if (code === clear) {
+        reset();
+        prev = null;
+        continue;
+      }
+      if (code === clear + 1) break;
+      const entry: number[] = code < dict.length ? dict[code] : [...prev!, prev![0]];
+      out.push(...entry);
+      if (prev) dict.push([...prev, entry[0]]);
+      if (dict.length === 1 << size && size < 12) size++;
+      prev = entry;
+    }
+    canvas = canvas.slice();
+    for (let y = 0; y < fh; y++) {
+      for (let x = 0; x < fw; x++) {
+        const v = out[y * fw + x];
+        if (v === transparent) continue;
+        const i = ((y + y0) * w + x + x0) * 3;
+        canvas.set(table.subarray(v * 3, v * 3 + 3), i);
+      }
+    }
+    frames.push(canvas);
+  }
+  return { w, h, frames, loops };
+}
+
+{
+  const [w, h, n] = [97, 61, 5];
+  let seed = 9;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) >>> 16) & 3;
+  const frames = Array.from({ length: n }, (_, f) => {
+    const a = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      const x = i % w;
+      const moving = x > f * 15 && x < f * 15 + 20;
+      a.set([moving ? 224 : rnd() * 64, (x & 7) * 32, moving ? 32 : 96, 255], i * 4);
+    }
+    return a;
+  });
+  const gif = decodeGif(encodeGif(frames, w, h, 8));
+  assert.equal(gif.frames.length, n, "GIF keeps every frame");
+  assert.equal(gif.loops, 0, "GIF loops forever");
+  gif.frames.forEach((f, k) => {
+    for (let i = 0; i < w * h; i++) {
+      for (let c = 0; c < 3; c++) assert.equal(f[i * 3 + c], frames[k][i * 4 + c], `GIF frame ${k} pixel ${i}`);
+    }
+  });
+  console.log("ok: GIF round trip");
 }

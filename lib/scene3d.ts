@@ -14,8 +14,11 @@ export const PRESETS: { id: Preset; label: string; blurb: string }[] = [
   { id: "sweep", label: "Sweep light", blurb: "The light circles the subject" },
 ];
 
-// Samples at twice the cell resolution, so a turned surface still covers every cell.
-export const OVERSAMPLE = 2;
+// Samples at three times the cell resolution. Each cell averages the samples on its front surface,
+// so a glyph changes only when the surface under it really changes, instead of flickering.
+export const OVERSAMPLE = 3;
+// Samples this close behind a cell's front sample count as the same surface.
+const SURFACE_BAND = 0.04;
 
 export type Field = {
   w: number;
@@ -88,6 +91,28 @@ export function pose(preset: Preset, t: number, motion: number): Pose {
   return p;
 }
 
+// Softens model noise in the depth map, so shading follows the shape rather than its grain.
+export function smoothDepth(depth: Uint8Array, w: number, h: number, radius = 2) {
+  const tmp = new Float32Array(w * h);
+  const out = new Uint8Array(w * h);
+  const span = radius * 2 + 1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let k = -radius; k <= radius; k++) sum += depth[y * w + Math.min(w - 1, Math.max(0, x + k))];
+      tmp[y * w + x] = sum / span;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let k = -radius; k <= radius; k++) sum += tmp[Math.min(h - 1, Math.max(0, y + k)) * w + x];
+      out[y * w + x] = Math.round(sum / span);
+    }
+  }
+  return out;
+}
+
 export function renderFrame(field: Field, cols: number, rows: number, m: Motion, t: number): Frame {
   const { w, h } = field;
   const p = pose(m.preset, t, m.motion);
@@ -96,7 +121,19 @@ export function renderFrame(field: Field, cols: number, rows: number, m: Motion,
   const sx = 2 / w;
   const sy = (2 * aspect) / h;
   const relief = 0.55 * m.depth * p.relief;
-  const zOf = (i: number) => (field.depth[i] / 255 - 0.5) * relief;
+  const cut = m.cutoff * 255;
+  const kept = (k: number) => !(field.keep && field.keep[k] < 128) && field.depth[k] >= cut;
+
+  // Turns around the subject's own middle depth, so it swings in place instead of sliding.
+  let mid = 0;
+  let count = 0;
+  for (let k = 0; k < w * h; k++) {
+    if (!kept(k)) continue;
+    mid += field.depth[k];
+    count++;
+  }
+  mid = count ? mid / count / 255 : 0.5;
+  const zOf = (k: number) => (field.depth[k] / 255 - mid) * relief;
   const waveZ = (x: number, y: number) => {
     if (!p.ripple) return 0;
     const r = Math.hypot(x, y / Math.max(aspect, 0.01));
@@ -110,49 +147,89 @@ export function renderFrame(field: Field, cols: number, rows: number, m: Motion,
     return [x1, y * cp - z1 * sp, y * sp + z1 * cp];
   };
   const [lx, ly, lz] = p.light;
-  const cut = m.cutoff * 255;
+  // Lighting is scaled so a surface facing the camera keeps its own tone, and only turns change it.
+  const flat = 0.6 + 0.4 * Math.max(0, DEFAULT_LIGHT[2]);
   const dark = m.darkGround;
 
+  // Every sample's cell and distance, worked out once and used by both passes.
   const n = cols * rows;
-  const zbuf = new Float32Array(n).fill(Infinity);
-  const tone = new Uint8Array(n);
-  const src = new Int32Array(n).fill(-1);
-
+  const at = new Int32Array(w * h).fill(-1);
+  const dist = new Float32Array(w * h);
+  // Position in cell units, kept for the weighted splat in the second pass.
+  const fx = new Float32Array(w * h);
+  const fy = new Float32Array(w * h);
+  const front = new Float32Array(n).fill(Infinity);
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
       const k = j * w + i;
-      if (field.keep && field.keep[k] < 128) continue;
-      if (field.depth[k] < cut) continue;
+      if (!kept(k)) continue;
+      const x = (i + 0.5) * sx - 1;
+      const y = (j + 0.5) * sy - aspect;
+      const [rx, ry, rz] = rotate(x + p.tx, y + p.ty, zOf(k) + waveZ(x, y));
+      const d = p.dist - rz;
+      if (d <= 0.05) continue;
+      const u = ((((rx * p.focal) / d) * FILL + 1) / 2) * cols;
+      const v = ((((ry * p.focal) / d) * FILL + aspect) / (2 * aspect)) * rows;
+      const c = Math.floor(u);
+      const r = Math.floor(v);
+      if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
+      const cell = r * cols + c;
+      at[k] = cell;
+      dist[k] = d;
+      fx[k] = u;
+      fy[k] = v;
+      if (d < front[cell]) front[cell] = d;
+    }
+  }
+
+  // Each sample feeds the four cells around it, weighted by how close it is to each centre, so a small
+  // move shifts the averages gradually instead of snapping a sample from one cell to the next.
+  const tone = new Float32Array(n);
+  const color = new Float32Array(n * 3);
+  const weight = new Float32Array(n);
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      const k = j * w + i;
+      const cell = at[k];
+      if (cell < 0) continue;
       const x = (i + 0.5) * sx - 1;
       const y = (j + 0.5) * sy - aspect;
       const z = zOf(k) + waveZ(x, y);
-      const [rx, ry, rz] = rotate(x + p.tx, y + p.ty, z);
-      const depthToCam = p.dist - rz;
-      if (depthToCam <= 0.05) continue;
-      const px = (rx * p.focal) / depthToCam;
-      const py = (ry * p.focal) / depthToCam;
-      const c = Math.floor(((px * FILL + 1) / 2) * cols);
-      const r = Math.floor(((py * FILL + aspect) / (2 * aspect)) * rows);
-      if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
-      const cell = r * cols + c;
-      if (depthToCam >= zbuf[cell]) continue;
-      zbuf[cell] = depthToCam;
-
-      // Surface normal from the depth slope, turned with the object.
-      const zl = i > 0 ? zOf(k - 1) + waveZ(x - sx, y) : z;
-      const zr = i < w - 1 ? zOf(k + 1) + waveZ(x + sx, y) : z;
-      const zu = j > 0 ? zOf(k - w) + waveZ(x, y - sy) : z;
-      const zd = j < h - 1 ? zOf(k + w) + waveZ(x, y + sy) : z;
+      const zl = i > 0 && kept(k - 1) ? zOf(k - 1) + waveZ(x - sx, y) : z;
+      const zr = i < w - 1 && kept(k + 1) ? zOf(k + 1) + waveZ(x + sx, y) : z;
+      const zu = j > 0 && kept(k - w) ? zOf(k - w) + waveZ(x, y - sy) : z;
+      const zd = j < h - 1 && kept(k + w) ? zOf(k + w) + waveZ(x, y + sy) : z;
       const [nx, ny, nz] = rotate(-(zr - zl) / (2 * sx), -(zd - zu) / (2 * sy), 1);
       const nl = Math.hypot(nx, ny, nz) || 1;
       const lambert = Math.max(0, (nx * lx + ny * ly + nz * lz) / nl);
-      const shade = 0.35 + 0.85 * lambert;
-
+      const shade = (0.6 + 0.4 * lambert) / flat;
       const lum = field.lum[k];
-      const bright = dark ? 255 - lum : lum;
-      const lit = Math.min(255, bright * shade);
-      tone[cell] = Math.round(dark ? 255 - lit : lit);
-      src[cell] = k;
+      const bright = Math.min(255, (dark ? 255 - lum : lum) * shade);
+      const value = dark ? 255 - bright : bright;
+      const gx = fx[k] - 0.5;
+      const gy = fy[k] - 0.5;
+      const c0 = Math.floor(gx);
+      const r0 = Math.floor(gy);
+      const ax = gx - c0;
+      const ay = gy - r0;
+      for (let dy = 0; dy < 2; dy++) {
+        const rr = r0 + dy;
+        if (rr < 0 || rr >= rows) continue;
+        for (let dx = 0; dx < 2; dx++) {
+          const cc = c0 + dx;
+          if (cc < 0 || cc >= cols) continue;
+          const target = rr * cols + cc;
+          // Only the surface that is in front at that cell may contribute to it.
+          if (dist[k] > front[target] + SURFACE_BAND) continue;
+          const wt = (dx ? ax : 1 - ax) * (dy ? ay : 1 - ay);
+          if (wt <= 0) continue;
+          tone[target] += value * wt;
+          color[target * 3] += field.rgb[k * 3] * wt;
+          color[target * 3 + 1] += field.rgb[k * 3 + 1] * wt;
+          color[target * 3 + 2] += field.rgb[k * 3 + 2] * wt;
+          weight[target] += wt;
+        }
+      }
     }
   }
 
@@ -160,25 +237,24 @@ export function renderFrame(field: Field, cols: number, rows: number, m: Motion,
   for (let r = 1; r < rows - 1; r++) {
     for (let c = 1; c < cols - 1; c++) {
       const cell = r * cols + c;
-      if (src[cell] >= 0) continue;
-      const lr = src[cell - 1] >= 0 && src[cell + 1] >= 0;
-      const ud = src[cell - cols] >= 0 && src[cell + cols] >= 0;
-      if (!lr && !ud) continue;
-      const from = lr ? cell - 1 : cell - cols;
-      src[cell] = src[from];
+      if (weight[cell]) continue;
+      const from = weight[cell - 1] && weight[cell + 1] ? cell - 1 : weight[cell - cols] && weight[cell + cols] ? cell - cols : -1;
+      if (from < 0) continue;
       tone[cell] = tone[from];
+      color.copyWithin(cell * 3, from * 3, from * 3 + 3);
+      weight[cell] = weight[from];
     }
   }
 
   const cells = new Uint8Array(n);
   const rgb = new Uint8Array(n * 3);
   for (let cell = 0; cell < n; cell++) {
-    const k = src[cell];
-    if (k < 0) continue;
-    cells[cell] = glyphIndex(tone[cell], m.gamma, m.floor);
-    rgb[cell * 3] = field.rgb[k * 3];
-    rgb[cell * 3 + 1] = field.rgb[k * 3 + 1];
-    rgb[cell * 3 + 2] = field.rgb[k * 3 + 2];
+    const wgt = weight[cell];
+    if (!wgt || front[cell] === Infinity) continue;
+    cells[cell] = glyphIndex(Math.round(tone[cell] / wgt), m.gamma, m.floor);
+    rgb[cell * 3] = Math.round(color[cell * 3] / wgt);
+    rgb[cell * 3 + 1] = Math.round(color[cell * 3 + 1] / wgt);
+    rgb[cell * 3 + 2] = Math.round(color[cell * 3 + 2] / wgt);
   }
   return { cells, rgb };
 }

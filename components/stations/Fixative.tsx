@@ -73,6 +73,24 @@ export default function Fixative({ output, source, settings, showing, previewCan
     return () => watch.disconnect();
   }, [is3d, loop, settings.mode, settings.ground]);
 
+  const [gifBytes, setGifBytes] = useState(0);
+  useEffect(() => setGifBytes(0), [loop, settings.mode, settings.ground]);
+  const saveGif = () =>
+    new Promise<void>((done, fail) => {
+      const w = new Worker(new URL("../../lib/gifWorker.ts", import.meta.url), { type: "module" });
+      w.onmessage = (e: MessageEvent<Uint8Array<ArrayBuffer>>) => {
+        setGifBytes(e.data.length);
+        save(new Blob([e.data], { type: "image/gif" }), `${exportName}-3d.gif`);
+        w.terminate();
+        done();
+      };
+      w.onerror = (e) => {
+        w.terminate();
+        fail(e);
+      };
+      w.postMessage({ loop, mode: settings.mode, ground: settings.ground });
+    });
+
   const pngScales = output ? [1, 2, 3, 4].filter((n) => output.cols * CELL_W * n <= MAX_CANVAS_SIDE && output.rows * CELL_H * n <= MAX_CANVAS_SIDE) : [];
 
   // The short pause lets the label paint before heavy work, and the hold keeps it readable.
@@ -199,6 +217,13 @@ export default function Fixative({ output, source, settings, showing, previewCan
             )}
             <button type="button" disabled={!!saving} onClick={() => saveAs("svg3d", () => save(new Blob([files3d!.svg], { type: "image/svg+xml" }), `${exportName}-3d.svg`))} className="bg-char text-sheet mt-auto min-h-11 px-2 font-semibold whitespace-nowrap">
               {saving === "svg3d" ? "Downloading" : `Download SVG, ${sizeLabel(bytes3d.svg ?? 0)}`}
+            </button>
+          </li>
+          <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 wide:w-auto wide:flex-1 wide:basis-0 md:-rotate-[0.4deg]">
+            <span data-mono className="text-heading font-semibold">GIF</span>
+            <span className="text-label text-soft">Plays almost anywhere: chats, docs and sites that take images.</span>
+            <button type="button" disabled={!!saving} onClick={() => saveAs("gif", saveGif)} className="bg-char text-sheet mt-auto min-h-11 px-2 font-semibold whitespace-nowrap">
+              {saving === "gif" ? "Encoding" : gifBytes ? `Download GIF, ${sizeLabel(gifBytes)}` : "Download GIF"}
             </button>
           </li>
           <li className="bg-sheet flex w-[84vw] shrink-0 snap-start flex-col gap-3 p-5 short:gap-1 short:p-4 shadow-[3px_4px_0_#1b1a1944] md:w-64 wide:w-auto wide:flex-1 wide:basis-0 md:rotate-[1deg]">

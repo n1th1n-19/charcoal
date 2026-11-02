@@ -2,7 +2,7 @@
 import * as P from "@/lib/pipeline";
 import { DEPTH, runtime, session, U2NET } from "@/lib/models";
 import { GROUNDS, Mode, rasterize } from "@/lib/render";
-import { Frame, OVERSAMPLE, Preset, renderLoop } from "@/lib/scene3d";
+import { Frame, OVERSAMPLE, Preset, renderLoop, smoothDepth } from "@/lib/scene3d";
 
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
@@ -246,7 +246,7 @@ async function render3d(id: number, gen: number, s: Settings, toned: Uint8Array,
     h: fh,
     lum,
     rgb,
-    depth: P.resize(depth.data, depth.w, depth.h, fw, fh),
+    depth: smoothDepth(P.resize(depth.data, depth.w, depth.h, fw, fh), fw, fh),
     keep: mask ? P.resize(mask, W, H, fw, fh) : null,
   };
   const motion = { preset: s.preset, depth: s.depth, motion: s.motion, cutoff: s.cutoff, gamma: s.gamma, floor: s.floor, darkGround: s.ground === "dark" };
