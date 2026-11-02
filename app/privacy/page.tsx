@@ -38,8 +38,8 @@ export default function Privacy() {
       <h2>Background removal</h2>
       <p>
         If you turn this on, your browser downloads a 176 MB model file once from Hugging Face, which may log your IP
-        address like any website. The model then runs on your device. Your image is not sent anywhere. Your browser may
-        keep the model in its normal cache.
+        address like any website. The model then runs on your device. Your image is not sent anywhere. Your browser keeps
+        a copy of the model in this site's storage, so it downloads only once. Clearing this site's data removes it.
       </p>
       <h2>Hosting</h2>
       <p>
@@ -50,7 +50,8 @@ export default function Privacy() {
       <p>Links to GitHub and other sites lead outside {NAME}. Those sites have their own privacy policies.</p>
       <h2>Your choices</h2>
       <p>
-        Nothing you make is stored, so there is nothing for us to delete. Visit counts are anonymous and cannot be traced
+        Nothing you make is stored, so there is nothing for us to delete. The only thing saved on your device is the
+        background model, if you used it, and clearing this site's data removes it. Visit counts are anonymous and cannot be traced
         back to you. A content or ad blocker will usually stop them from being sent at all.
       </p>
       <h2>Children</h2>

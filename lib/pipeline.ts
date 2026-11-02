@@ -125,12 +125,24 @@ export function clahe(src: Uint8Array, w: number, h: number, clipLimit: number) 
   return out;
 }
 
-export const invert = (src: Uint8Array) => src.map((v) => 255 - v);
+export function invert(src: Uint8Array) {
+  const out = new Uint8Array(src.length);
+  for (let i = 0; i < src.length; i++) out[i] = 255 - src[i];
+  return out;
+}
+
+// Maps every pixel through a 256-entry table: the same values as computing each one.
+function remap(src: Uint8Array, f: (v: number) => number) {
+  const lut = Uint8Array.from({ length: 256 }, (_, v) => f(v));
+  const out = new Uint8Array(src.length);
+  for (let i = 0; i < src.length; i++) out[i] = lut[src[i]];
+  return out;
+}
 
 // cv2.convertScaleAbs(alpha=1.05, beta=18)
 export function lift(src: Uint8Array, alpha = 1.05, beta = 18) {
   const a = Math.fround(alpha);
-  return src.map((v) => clamp8(roundEven(Math.abs(Math.fround(v * a + beta)))));
+  return remap(src, (v) => clamp8(roundEven(Math.abs(Math.fround(v * a + beta)))));
 }
 
 // Alpha feathered with cv2.GaussianBlur((0, 0), 1) on floats, then pasted onto white.
@@ -141,39 +153,67 @@ export function compositeWhite(gray: Uint8Array, alpha: Uint8Array, w: number, h
   let total = 0;
   for (let i = 0; i < size; i++) total += kernel[i] = Math.exp(-((i - half) ** 2) / (2 * sigma * sigma));
   for (let i = 0; i < size; i++) kernel[i] /= total;
-
   const small = kernel.map(fr);
+
+  // Each tap of the first pass only ever sees 256 alpha values, so its float32 product is tabulated.
+  const taps = new Float32Array(size * 256);
+  for (let k = 0; k < size; k++) for (let a = 0; a < 256; a++) taps[k * 256 + a] = fr(small[k] * fr(a / 255));
+
+  // Storing into a Float32Array rounds exactly as Math.fround does, so whole rows are summed at once.
+  const src = new Int32Array(size * w);
+  for (let k = 0; k < size; k++) for (let x = 0; x < w; x++) src[k * w + x] = reflect101(x + k - half, w);
   const horiz = new Float32Array(w * h);
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let v = 0;
-      for (let k = 0; k < size; k++) v = fr(v + fr(small[k] * fr(alpha[y * w + reflect101(x + k - half, w)] / 255)));
-      horiz[y * w + x] = v;
+    const row = y * w;
+    const acc = horiz.subarray(row, row + w);
+    for (let k = 0; k < size; k++) {
+      const tap = k * 256;
+      const at = k * w;
+      for (let x = 0; x < w; x++) acc[x] = acc[x] + taps[tap + alpha[row + src[at + x]]];
     }
   }
+
   const out = new Uint8Array(w * h);
+  const m = new Float32Array(w);
+  const part = new Float32Array(w);
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let m = 0;
-      for (let k = 0; k < size; k++) m = fr(m + fr(small[k] * horiz[reflect101(y + k - half, h) * w + x]));
-      out[y * w + x] = Math.trunc(clamp8(fr(fr(gray[y * w + x] * m) + fr(255 * fr(1 - m)))));
+    m.fill(0);
+    for (let k = 0; k < size; k++) {
+      const s = small[k];
+      const off = reflect101(y + k - half, h) * w;
+      for (let x = 0; x < w; x++) part[x] = s * horiz[off + x];
+      for (let x = 0; x < w; x++) m[x] = m[x] + part[x];
     }
+    const row = y * w;
+    for (let x = 0; x < w; x++) out[row + x] = Math.trunc(clamp8(fr(fr(gray[row + x] * m[x]) + fr(255 * fr(1 - m[x])))));
   }
   return out;
 }
 
-// PIL extended box blur along one axis, in 24-bit fixed point.
-function boxLine(get: (i: number) => number, put: (i: number, v: number) => void, n: number, radius: number) {
+// PIL extended box blur, in 24-bit fixed point. Reads src and writes dst, n values apart by step,
+// for `lines` parallel lines that start `pitch` apart.
+function boxPass(src: Uint8Array, dst: Uint8Array, n: number, step: number, lines: number, pitch: number, radius: number) {
   const r = Math.trunc(radius);
   const ww = Math.trunc(fr(2 ** 24 / fr(fr(radius * 2) + 1)));
   const fw = Math.trunc((2 ** 24 - (r * 2 + 1) * ww) / 2);
-  const c = (i: number) => get(i < 0 ? 0 : i >= n ? n - 1 : i);
-  let acc = c(0) * (r + 1);
-  for (let i = 0; i < r; i++) acc += c(i);
+  const at = (i: number) => (i < 0 ? 0 : i >= n ? n - 1 : i) * step;
+  const acc = new Float64Array(lines);
+  for (let l = 0; l < lines; l++) {
+    const base = l * pitch;
+    let a = src[base + at(0)] * (r + 1);
+    for (let i = 0; i < r; i++) a += src[base + at(i)];
+    acc[l] = a;
+  }
   for (let x = 0; x < n; x++) {
-    acc += c(x + r) - c(x - r - 1);
-    const bulk = acc * ww + (c(x - r - 1) + c(x + r + 1)) * fw;
-    put(x, Math.floor((bulk + 2 ** 23) / 2 ** 24));
+    const add = at(x + r);
+    const sub = at(x - r - 1);
+    const far = at(x + r + 1);
+    const put = x * step;
+    for (let l = 0; l < lines; l++) {
+      const base = l * pitch;
+      const a = (acc[l] += src[base + add] - src[base + sub]);
+      dst[base + put] = Math.floor((a * ww + (src[base + sub] + src[base + far]) * fw + 2 ** 23) / 2 ** 24);
+    }
   }
 }
 
@@ -185,19 +225,16 @@ function pilGaussian(src: Uint8Array, w: number, h: number, radius: number) {
   const l = Math.floor((L - 1) / 2);
   const a = ((2 * l + 1) * (l * (l + 1) - 3 * s2)) / (6 * (s2 - (l + 1) * (l + 1)));
   const box = Math.fround(l + a);
-  const buf = src.slice();
-  const line = new Uint8Array(Math.max(w, h));
+  let buf = src.slice();
+  let spare = new Uint8Array(src.length);
+  // Rows are short and contiguous, so walk one at a time. Columns are walked side by side, row by row.
   for (let p = 0; p < passes; p++) {
-    for (let y = 0; y < h; y++) {
-      line.set(buf.subarray(y * w, (y + 1) * w));
-      boxLine((i) => line[i], (i, v) => (buf[y * w + i] = v), w, box);
-    }
+    for (let y = 0; y < h; y++) boxPass(buf.subarray(y * w, (y + 1) * w), spare.subarray(y * w, (y + 1) * w), w, 1, 1, 0, box);
+    [buf, spare] = [spare, buf];
   }
   for (let p = 0; p < passes; p++) {
-    for (let x = 0; x < w; x++) {
-      for (let y = 0; y < h; y++) line[y] = buf[y * w + x];
-      boxLine((i) => line[i], (i, v) => (buf[i * w + x] = v), h, box);
-    }
+    boxPass(buf, spare, h, w, w, 1, box);
+    [buf, spare] = [spare, buf];
   }
   return buf;
 }
@@ -221,7 +258,7 @@ export function contrast(src: Uint8Array, factor: number) {
   for (let i = 0; i < src.length; i++) sum += src[i];
   const mean = Math.trunc(sum / src.length + 0.5);
   const f = Math.fround(factor);
-  return src.map((v) => clamp8(Math.trunc(Math.fround(mean + f * (v - mean)))));
+  return remap(src, (v) => clamp8(Math.trunc(Math.fround(mean + f * (v - mean)))));
 }
 
 const sinc = (x: number) => (x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x));

@@ -5,6 +5,7 @@ import { GROUNDS, Mode, rasterize } from "@/lib/render";
 // Pinned to a commit so the model cannot change underneath the site.
 export const MODEL_URL = "https://huggingface.co/n1th1n-19/charcoal-u2net/resolve/a9f8c0c454f341d4b32ea088f3066cbac1af4421/u2net.onnx";
 const MODEL_SHA256 = "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491";
+const MODEL_CACHE = "charcoal-model-v1";
 const ORT_URL = "/ort/ort.wasm.min.mjs";
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
@@ -65,10 +66,24 @@ function stage(name: string, key: string, run: () => Uint8Array) {
   return value;
 }
 
-async function loadModel() {
-  if (session) return session;
-  ort = await import(/* turbopackIgnore: true */ /* webpackIgnore: true */ ORT_URL);
-  ort!.env.wasm.wasmPaths = "/ort/";
+const sha256 = async (bytes: Uint8Array<ArrayBuffer>) =>
+  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (v) => v.toString(16).padStart(2, "0")).join("");
+
+// The model host answers through a redirect that forbids caching, so the browser would download it
+// every time. A verified copy is kept in this site's Cache Storage instead.
+async function modelBytes() {
+  let store: Cache | null = null;
+  try {
+    store = await caches.open(MODEL_CACHE);
+    const saved = await store.match(MODEL_URL);
+    if (saved) {
+      const bytes = new Uint8Array(await saved.arrayBuffer());
+      if ((await sha256(bytes)) === MODEL_SHA256) return bytes;
+      await store.delete(MODEL_URL);
+    }
+  } catch {
+    store = null;
+  }
   const res = await fetch(MODEL_URL);
   if (!res.ok || !res.body) throw new Error(`model request returned ${res.status}`);
   const total = Number(res.headers.get("content-length")) || 0;
@@ -88,9 +103,17 @@ async function loadModel() {
     bytes.set(p, at);
     at += p.length;
   }
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  const hash = Array.from(digest, (v) => v.toString(16).padStart(2, "0")).join("");
-  if (hash !== MODEL_SHA256) throw new Error("the downloaded file failed its integrity check");
+  if ((await sha256(bytes)) !== MODEL_SHA256) throw new Error("the downloaded file failed its integrity check");
+  // Storage can be full or blocked, for example in a private window. The model still works without it.
+  await store?.put(MODEL_URL, new Response(bytes, { headers: { "content-type": "application/octet-stream" } })).catch(() => undefined);
+  return bytes;
+}
+
+async function loadModel() {
+  if (session) return session;
+  ort = await import(/* turbopackIgnore: true */ /* webpackIgnore: true */ ORT_URL);
+  ort!.env.wasm.wasmPaths = "/ort/";
+  const bytes = await modelBytes();
   session = await ort!.InferenceSession.create(bytes);
   return session!;
 }
@@ -124,12 +147,21 @@ async function predictMask() {
   return P.resize(mask, 320, 320, W, H);
 }
 
+// Gives queued messages a turn. A newer request or a new image makes the current render obsolete.
+const superseded = async (id: number, gen: number) => {
+  await new Promise((r) => setTimeout(r, 0));
+  return id !== latest || gen !== generation;
+};
+
 async function render(id: number, s: Settings) {
   const t0 = performance.now();
+  const gen = generation;
   if (s.removeBg && !modelMask) {
     post({ type: "stage", name: "Remove background" });
     try {
-      modelMask = await predictMask();
+      const predicted = await predictMask();
+      if (gen !== generation) return;
+      modelMask = predicted;
     } catch (e) {
       post({
         type: "error",
@@ -143,18 +175,25 @@ async function render(id: number, s: Settings) {
   const maskKey = s.removeBg ? "model" : sourceAlpha ? "source" : "none";
 
   const gray = stage("Grayscale", maskKey, () => P.grayscale(mask ? P.cutout(rgba, mask) : rgba, W, H));
+  if (await superseded(id, gen)) return;
   const claheKey = `${maskKey}|${s.clahe}`;
   const local = stage("CLAHE", claheKey, () => (s.clahe > 0 ? P.clahe(gray, W, H, s.clahe) : gray));
+  if (await superseded(id, gen)) return;
   const liftKey = `${claheKey}|${s.invert}`;
   const lifted = stage("Invert and lift", liftKey, () => P.lift(s.invert ? P.invert(local) : local));
+  if (await superseded(id, gen)) return;
   const comp = stage("Composite", liftKey, () => (mask ? P.compositeWhite(lifted, mask, W, H) : lifted));
+  if (await superseded(id, gen)) return;
   const sharpKey = `${liftKey}|${s.sharpen}`;
   const sharp = stage("Sharpen", sharpKey, () => P.unsharp(comp, W, H, 2, s.sharpen, 2));
+  if (await superseded(id, gen)) return;
   const toneKey = `${sharpKey}|${s.contrast}`;
   const toned = stage("Contrast", toneKey, () => P.contrast(sharp, s.contrast));
+  if (await superseded(id, gen)) return;
   const rows = P.rowsFor(W, H, s.cols);
   const gridKey = `${toneKey}|${s.cols}`;
   const grid = stage("Resample", gridKey, () => P.resize(toned, W, H, s.cols, rows));
+  if (await superseded(id, gen)) return;
   const rgb = stage("Sample color", String(s.cols), () => {
     const source = new Uint8Array(W * H * 3);
     for (let i = 0; i < W * H; i++) {
@@ -164,6 +203,7 @@ async function render(id: number, s: Settings) {
     }
     return P.resize(source, W, H, s.cols, rows, 3);
   });
+  if (await superseded(id, gen)) return;
   post({ type: "stage", name: "Map to glyphs" });
   const cells = P.mapGlyphs(grid, s.gamma, s.floor);
 
@@ -183,6 +223,7 @@ async function render(id: number, s: Settings) {
 }
 
 let latest = 0;
+let generation = 0;
 let running = false;
 let pending: Settings | null = null;
 
@@ -217,6 +258,7 @@ self.onmessage = (e: MessageEvent<Request>) => {
       return;
     }
     m.bitmap.close();
+    generation++;
     cache.clear();
     modelMask = null;
     sourceAlpha = null;
