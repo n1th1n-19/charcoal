@@ -1,9 +1,13 @@
 // Shared constants and small helpers for the app shell.
 import type { Mode } from "./render.ts";
-import type { Settings } from "./worker.ts";
+import type { Route, Settings } from "./worker.ts";
 
-export const STATIONS = ["Specimen", "Kiln", "Easel", "Fixative"];
+export const stationsFor = (route: Route) => ["Specimen", "Kiln", route === "3d" ? "Maquette" : "Easel", "Fixative"];
 export const STAGES = ["Remove background", "Grayscale", "CLAHE", "Invert and lift", "Composite", "Sharpen", "Contrast", "Resample", "Sample color", "Map to glyphs"];
+// The 3D route shares the image stages, then estimates depth and builds frames instead of a single grid.
+export const STAGES_3D = [...STAGES.slice(0, STAGES.indexOf("Contrast") + 1), "Estimate depth", "Resample", "Sample color", "Build frames"];
+export const stagesFor = (route: Route) => (route === "3d" ? STAGES_3D : STAGES);
+export const STATION_COUNT = 4;
 export const MODES: Mode[] = ["Mono", "16 colors", "Green", "Amber", "Original colors"];
 export const MIN_STAGE_MS = 240;
 export const LOADER_MIN_MS = 1400;
@@ -33,6 +37,13 @@ export const DEFAULTS: Settings = {
   mode: "Original colors",
   ground: "dark",
   burn: BURN_NEUTRAL,
+  preset: "turntable",
+  depth: 0.8,
+  motion: 1,
+  fps: 12,
+  frames: 48,
+  cols3d: 120,
+  cutoff: 0.15,
 };
 
 // The sample is a dark subject on a pale ground, so ink on white reads as a positive.

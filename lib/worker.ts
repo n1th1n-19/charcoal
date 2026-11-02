@@ -1,12 +1,9 @@
 // Holds the image and every stage's output, and reruns only from the stage a change touched.
 import * as P from "@/lib/pipeline";
+import { DEPTH, runtime, session, U2NET } from "@/lib/models";
 import { GROUNDS, Mode, rasterize } from "@/lib/render";
+import { Frame, OVERSAMPLE, Preset, renderLoop } from "@/lib/scene3d";
 
-// Pinned to a commit so the model cannot change underneath the site.
-export const MODEL_URL = "https://huggingface.co/n1th1n-19/charcoal-u2net/resolve/a9f8c0c454f341d4b32ea088f3066cbac1af4421/u2net.onnx";
-const MODEL_SHA256 = "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491";
-const MODEL_CACHE = "charcoal-model-v1";
-const ORT_URL = "/ort/ort.wasm.min.mjs";
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
 
@@ -22,11 +19,20 @@ export type Settings = {
   mode: Mode;
   ground: keyof typeof GROUNDS;
   burn: number;
+  preset: Preset;
+  depth: number;
+  motion: number;
+  fps: number;
+  frames: number;
+  cols3d: number;
+  cutoff: number;
 };
+
+export type Route = "2d" | "3d";
 
 export type Request =
   | { type: "load"; bitmap: ImageBitmap }
-  | { type: "render"; id: number; settings: Settings };
+  | { type: "render"; id: number; settings: Settings; route: Route };
 
 export type Reply =
   | { type: "stage"; name: string }
@@ -43,7 +49,8 @@ export type Reply =
       mono: ImageBitmap;
       color: ImageBitmap;
       ms: number;
-    };
+    }
+  | { type: "frames"; id: number; cols: number; rows: number; fps: number; frames: Frame[] };
 
 const post = (m: Reply, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(m, transfer);
 
@@ -52,8 +59,6 @@ let H = 0;
 let rgba = new Uint8ClampedArray();
 let sourceAlpha: Uint8Array | null = null;
 let modelMask: Uint8Array | null = null;
-let session: { run(feeds: object): Promise<Record<string, { data: Float32Array }>>; inputNames: string[] } | null = null;
-let ort: { Tensor: new (t: string, d: Float32Array, s: number[]) => unknown; env: { wasm: { wasmPaths: string } }; InferenceSession: { create(b: Uint8Array): Promise<typeof session> } } | null = null;
 
 const cache = new Map<string, { key: string; value: Uint8Array }>();
 
@@ -66,61 +71,12 @@ function stage(name: string, key: string, run: () => Uint8Array) {
   return value;
 }
 
-const sha256 = async (bytes: Uint8Array<ArrayBuffer>) =>
-  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (v) => v.toString(16).padStart(2, "0")).join("");
-
-// The model host answers through a redirect that forbids caching, so the browser would download it
-// every time. A verified copy is kept in this site's Cache Storage instead.
-async function modelBytes() {
-  let store: Cache | null = null;
-  try {
-    store = await caches.open(MODEL_CACHE);
-    const saved = await store.match(MODEL_URL);
-    if (saved) {
-      const bytes = new Uint8Array(await saved.arrayBuffer());
-      if ((await sha256(bytes)) === MODEL_SHA256) return bytes;
-      await store.delete(MODEL_URL);
-    }
-  } catch {
-    store = null;
-  }
-  const res = await fetch(MODEL_URL);
-  if (!res.ok || !res.body) throw new Error(`model request returned ${res.status}`);
-  const total = Number(res.headers.get("content-length")) || 0;
-  const reader = res.body.getReader();
-  const parts: Uint8Array[] = [];
-  let loaded = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    parts.push(value);
-    loaded += value.length;
-    post({ type: "download", loaded, total });
-  }
-  const bytes = new Uint8Array(loaded);
-  let at = 0;
-  for (const p of parts) {
-    bytes.set(p, at);
-    at += p.length;
-  }
-  if ((await sha256(bytes)) !== MODEL_SHA256) throw new Error("the downloaded file failed its integrity check");
-  // Storage can be full or blocked, for example in a private window. The model still works without it.
-  await store?.put(MODEL_URL, new Response(bytes, { headers: { "content-type": "application/octet-stream" } })).catch(() => undefined);
-  return bytes;
-}
-
-async function loadModel() {
-  if (session) return session;
-  ort = await import(/* turbopackIgnore: true */ /* webpackIgnore: true */ ORT_URL);
-  ort!.env.wasm.wasmPaths = "/ort/";
-  const bytes = await modelBytes();
-  session = await ort!.InferenceSession.create(bytes);
-  return session!;
-}
+const progress = (loaded: number, total: number) => post({ type: "download", loaded, total });
 
 // rembg's u2net session: 320 Lanczos, scale by max, ImageNet normalise, take d0, min-max, Lanczos back.
 async function predictMask() {
-  const net = await loadModel();
+  const net = await session(U2NET, progress);
+  const ort = await runtime();
   const rgb = new Uint8Array(W * H * 3);
   for (let i = 0; i < W * H; i++) {
     rgb[i * 3] = rgba[i * 4];
@@ -133,7 +89,7 @@ async function predictMask() {
   for (let i = 0; i < 320 * 320; i++) {
     for (let c = 0; c < 3; c++) input[c * 320 * 320 + i] = (small[i * 3 + c] / top - MEAN[c]) / STD[c];
   }
-  const tensor = new ort!.Tensor("float32", input, [1, 3, 320, 320]);
+  const tensor = new ort.Tensor("float32", input, [1, 3, 320, 320]);
   const out = await net.run({ [net.inputNames[0]]: tensor });
   const pred = Object.values(out)[0].data;
   let lo = Infinity;
@@ -147,13 +103,49 @@ async function predictMask() {
   return P.resize(mask, 320, 320, W, H);
 }
 
+// Depth Anything V2: short side near 364 in multiples of 14, ImageNet normalise, min-max to 0..255.
+// Smaller than the model's 518 because ASCII grids need far less detail, and it runs about twice as fast.
+const DEPTH_SHORT = 364;
+let depthMap: { gen: number; w: number; h: number; data: Uint8Array } | null = null;
+
+async function estimateDepth(gen: number) {
+  if (depthMap && depthMap.gen === gen) return depthMap;
+  const net = await session(DEPTH, progress);
+  const ort = await runtime();
+  const scale = DEPTH_SHORT / Math.min(W, H);
+  const dw = Math.max(14, Math.round((W * scale) / 14) * 14);
+  const dh = Math.max(14, Math.round((H * scale) / 14) * 14);
+  const rgb = new Uint8Array(W * H * 3);
+  for (let i = 0; i < W * H; i++) {
+    rgb[i * 3] = rgba[i * 4];
+    rgb[i * 3 + 1] = rgba[i * 4 + 1];
+    rgb[i * 3 + 2] = rgba[i * 4 + 2];
+  }
+  const small = P.resize(rgb, W, H, dw, dh, 3);
+  const input = new Float32Array(3 * dw * dh);
+  for (let i = 0; i < dw * dh; i++) {
+    for (let c = 0; c < 3; c++) input[c * dw * dh + i] = (small[i * 3 + c] / 255 - MEAN[c]) / STD[c];
+  }
+  const out = await net.run({ [net.inputNames[0]]: new ort.Tensor("float32", input, [1, 3, dh, dw]) });
+  const pred = Object.values(out)[0].data;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < pred.length; i++) {
+    lo = Math.min(lo, pred[i]);
+    hi = Math.max(hi, pred[i]);
+  }
+  const data = new Uint8Array(dw * dh);
+  for (let i = 0; i < data.length; i++) data[i] = Math.round(((pred[i] - lo) / (hi - lo || 1)) * 255);
+  return (depthMap = { gen, w: dw, h: dh, data });
+}
+
 // Gives queued messages a turn. A newer request or a new image makes the current render obsolete.
 const superseded = async (id: number, gen: number) => {
   await new Promise((r) => setTimeout(r, 0));
   return id !== latest || gen !== generation;
 };
 
-async function render(id: number, s: Settings) {
+async function render(id: number, s: Settings, route: Route) {
   const t0 = performance.now();
   const gen = generation;
   if (s.removeBg && !modelMask) {
@@ -190,6 +182,7 @@ async function render(id: number, s: Settings) {
   const toneKey = `${sharpKey}|${s.contrast}`;
   const toned = stage("Contrast", toneKey, () => P.contrast(sharp, s.contrast));
   if (await superseded(id, gen)) return;
+  if (route === "3d") return render3d(id, gen, s, toned, mask, toneKey);
   const rows = P.rowsFor(W, H, s.cols);
   const gridKey = `${toneKey}|${s.cols}`;
   const grid = stage("Resample", gridKey, () => P.resize(toned, W, H, s.cols, rows));
@@ -222,20 +215,59 @@ async function render(id: number, s: Settings) {
   );
 }
 
+async function render3d(id: number, gen: number, s: Settings, toned: Uint8Array, mask: Uint8Array | null, toneKey: string) {
+  post({ type: "stage", name: "Estimate depth" });
+  let depth;
+  try {
+    depth = await estimateDepth(gen);
+  } catch (e) {
+    post({ type: "error", message: `The depth model did not load (${e instanceof Error ? e.message : e}). Check your connection and try again.` });
+    return;
+  }
+  if (await superseded(id, gen)) return;
+  const cols = s.cols3d;
+  const rows = P.rowsFor(W, H, cols);
+  const [fw, fh] = [cols * OVERSAMPLE, rows * OVERSAMPLE];
+  const lum = stage("Resample", `3d|${toneKey}|${cols}`, () => P.resize(toned, W, H, fw, fh));
+  if (await superseded(id, gen)) return;
+  const rgb = stage("Sample color", `3d|${cols}`, () => {
+    const source = new Uint8Array(W * H * 3);
+    for (let i = 0; i < W * H; i++) {
+      source[i * 3] = rgba[i * 4];
+      source[i * 3 + 1] = rgba[i * 4 + 1];
+      source[i * 3 + 2] = rgba[i * 4 + 2];
+    }
+    return P.resize(source, W, H, fw, fh, 3);
+  });
+  if (await superseded(id, gen)) return;
+  post({ type: "stage", name: "Build frames" });
+  const field = {
+    w: fw,
+    h: fh,
+    lum,
+    rgb,
+    depth: P.resize(depth.data, depth.w, depth.h, fw, fh),
+    keep: mask ? P.resize(mask, W, H, fw, fh) : null,
+  };
+  const motion = { preset: s.preset, depth: s.depth, motion: s.motion, cutoff: s.cutoff, gamma: s.gamma, floor: s.floor, darkGround: s.ground === "dark" };
+  const frames = renderLoop(field, cols, rows, motion, s.frames);
+  post({ type: "frames", id, cols, rows, fps: s.fps, frames }, frames.flatMap((f) => [f.cells.buffer, f.rgb.buffer]));
+}
+
 let latest = 0;
 let generation = 0;
 let running = false;
-let pending: Settings | null = null;
+let pending: { settings: Settings; route: Route } | null = null;
 
 // Drops every request but the newest, so dragging a slider cannot queue work.
 async function drain() {
   if (running) return;
   running = true;
   while (pending) {
-    const s = pending;
+    const { settings, route } = pending;
     pending = null;
     try {
-      await render(latest, s);
+      await render(latest, settings, route);
     } catch (e) {
       post({ type: "error", message: `This image is too large for this device to process (${W} by ${H}). ${e instanceof Error ? e.message : ""}` });
     }
@@ -259,6 +291,7 @@ self.onmessage = (e: MessageEvent<Request>) => {
     }
     m.bitmap.close();
     generation++;
+    depthMap = null;
     cache.clear();
     modelMask = null;
     sourceAlpha = null;
@@ -271,6 +304,6 @@ self.onmessage = (e: MessageEvent<Request>) => {
     return;
   }
   latest = m.id;
-  pending = m.settings;
+  pending = { settings: m.settings, route: m.route };
   void drain();
 };

@@ -52,6 +52,7 @@ export default function Easel({ source, art, settings, progress, monoCanvas, col
             <canvas ref={colorCanvas} className="absolute inset-0 h-full w-full" aria-hidden="true" />
             <canvas
               ref={monoCanvas}
+                data-seam-clip
               className="absolute inset-0 h-full w-full"
               role="img"
               aria-label="ASCII drawing"

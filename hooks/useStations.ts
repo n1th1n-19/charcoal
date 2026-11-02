@@ -1,7 +1,7 @@
 import { animate } from "animejs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { markSides } from "@/components/Seam";
-import { STATIONS } from "@/lib/config";
+import { STATION_COUNT } from "@/lib/config";
 import { reducedMotion } from "@/lib/motion";
 
 // The sideways sheet: which station is showing, and every way of moving between them.
@@ -13,7 +13,7 @@ export function useStations(onMoved: () => void) {
   const goTo = useCallback((index: number) => {
     const el = scroller.current;
     if (!el) return;
-    const i = Math.max(0, Math.min(STATIONS.length - 1, index));
+    const i = Math.max(0, Math.min(STATION_COUNT - 1, index));
     const left = (el.children[i] as HTMLElement).offsetLeft;
     if (reducedMotion()) {
       el.scrollLeft = left;

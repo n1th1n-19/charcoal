@@ -6,7 +6,7 @@
 A private, in-browser tool that turns one image into detailed ASCII art. The theme is the material itself: wood, fire, the mark on paper, and keeping the drawing.
 
 ## Rules
-- One sheet of toned paper, four full-screen stations that slide on x: Specimen, Kiln, Easel, Fixative.
+- One sheet of toned paper, four full-screen stations that slide on x: Specimen, Kiln, Easel or Maquette, Fixative. Specimen chooses the route, Drawing or 3D animation.
 - One burn front divides every screen. Left of it nothing has color, with no exceptions.
 - The art area stays unthemed, so people see the real output.
 - Legal pages are the exception: vertical scroll, selectable text, no seam.

@@ -1,11 +1,11 @@
 import { Kiln } from "@/components/Sketches";
 import Story from "@/components/Story";
 import Progress from "@/components/ui/Progress";
-import { ProgressState, STAGES, STATION } from "@/lib/config";
+import { ProgressState, STATION } from "@/lib/config";
 
-type Props = { temp: number; lit: number; download: string; progress: ProgressState; removeBg: boolean };
+type Props = { temp: number; lit: number; download: string; progress: ProgressState; removeBg: boolean; stages: string[] };
 
-export default function KilnStation({ temp, lit, download, progress, removeBg }: Props) {
+export default function KilnStation({ temp, lit, download, progress, removeBg, stages: STAGES }: Props) {
   return (
       <section aria-label="Kiln" className={`${STATION} flex-col gap-4 flat:flex-row-reverse flat:p-3 md:flex-row-reverse md:items-center wide:grid wide:grid-cols-[17rem_minmax(0,1fr)_17rem] wide:gap-6`}>
         <div className="min-h-0 flex-1 self-stretch pt-[16vh] phone:pt-[9dvh] flat:pt-[14dvh] wide:col-start-2 wide:row-start-1 wide:translate-x-[12%]"><Kiln temp={temp} /></div>

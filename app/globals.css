@@ -126,6 +126,60 @@ svg {
 [data-drift="rise"] {
   animation: rise 4s ease-out infinite;
 }
+/* Preset cards: a small square acting out each motion. */
+.preset-stage {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 22px;
+  flex-shrink: 0;
+  perspective: 60px;
+}
+.preset-icon {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  animation: 2.4s ease-in-out infinite alternate;
+}
+.preset-icon[data-preset="turntable"] { animation-name: p-turn; }
+.preset-icon[data-preset="nod"] { animation-name: p-nod; }
+.preset-icon[data-preset="orbit"] { animation-name: p-orbit; animation-direction: normal; animation-timing-function: linear; }
+.preset-icon[data-preset="drift"] { animation-name: p-drift; animation-direction: normal; animation-timing-function: linear; }
+.preset-icon[data-preset="dolly"] { animation-name: p-dolly; }
+.preset-icon[data-preset="emerge"] { animation-name: p-emerge; }
+.preset-icon[data-preset="ripple"] { border-radius: 999px; animation-name: p-ripple; animation-direction: normal; }
+.preset-icon[data-preset="sweep"] {
+  background: linear-gradient(90deg, transparent 20%, currentColor 50%, transparent 80%) 0 0 / 300% 100%;
+  animation-name: p-sweep;
+}
+@keyframes p-turn { from { transform: rotateY(-50deg); } to { transform: rotateY(50deg); } }
+@keyframes p-nod { from { transform: rotateX(-45deg); } to { transform: rotateX(45deg); } }
+@keyframes p-orbit {
+  0% { transform: rotateX(25deg) rotateY(0); }
+  25% { transform: rotateX(0) rotateY(25deg); }
+  50% { transform: rotateX(-25deg) rotateY(0); }
+  75% { transform: rotateX(0) rotateY(-25deg); }
+  100% { transform: rotateX(25deg) rotateY(0); }
+}
+@keyframes p-drift {
+  0%, 100% { translate: 0 0; }
+  25% { translate: 5px -3px; }
+  50% { translate: 0 0; }
+  75% { translate: -5px 3px; }
+}
+@keyframes p-dolly { from { scale: 0.6; } to { scale: 1.2; } }
+@keyframes p-emerge { from { transform: scaleY(0.2); } to { transform: scaleY(1); } }
+@keyframes p-ripple { from { scale: 0.3; opacity: 1; } to { scale: 1.3; opacity: 0.2; } }
+@keyframes p-sweep { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+[data-drift="orbit"] {
+  animation: orbit 6s ease-in-out infinite;
+}
+@keyframes orbit {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 52px 14px; }
+}
 @keyframes fall {
   from { translate: 0 0; rotate: 0deg; opacity: 0; }
   12% { opacity: 1; }
@@ -363,6 +417,7 @@ html[data-ready] .burn {
     animation: none;
   }
   [data-drift],
+  .preset-icon,
   .ash-spark {
     animation: none;
   }

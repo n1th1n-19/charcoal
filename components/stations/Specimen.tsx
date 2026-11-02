@@ -6,10 +6,11 @@ import { Sticks, WoodSection } from "@/components/Sketches";
 import Story from "@/components/Story";
 import { IMAGE_TYPES, LOADER_MIN_MS, PICKING_MAX_MS, Source, STATION } from "@/lib/config";
 import { reducedMotion } from "@/lib/motion";
+import type { Route } from "@/lib/worker";
 
-type Props = { source: Source | null; take: (file: File, name: string) => void; trySample: () => void };
+type Props = { source: Source | null; take: (file: File, name: string) => void; trySample: () => void; route: Route; onRoute: (route: Route) => void };
 
-export default function Specimen({ source, take, trySample }: Props) {
+export default function Specimen({ source, take, trySample, route, onRoute }: Props) {
   const specimenArt = useRef<HTMLImageElement>(null);
   const [picking, setPicking] = useState(false);
 
@@ -36,6 +37,25 @@ export default function Specimen({ source, take, trySample }: Props) {
               ? `${source.w} by ${source.h}. Kept at full resolution, on this device only.`
               : "It goes into the kiln as a picture and comes out as a charcoal drawing made of text. Nothing is uploaded or stored."}
           </p>
+          <div role="radiogroup" aria-label="What to make" className="border-char grid w-fit grid-cols-2 border-2 phone:order-3 phone:w-full">
+            {(
+              [
+                ["2d", "Drawing"],
+                ["3d", "3D animation"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={route === id}
+                onClick={() => onRoute(id)}
+                className={`min-h-11 px-4 font-semibold ${route === id ? "bg-char text-sheet" : "hover:bg-sheet"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap gap-3 phone:order-3 phone:grid phone:grid-cols-2 phone:gap-2">
             <label className="bg-char text-sheet focus-within:outline-sanguine inline-flex min-h-12 phone:justify-center phone:px-2 cursor-pointer items-center px-5 font-semibold focus-within:outline-2 focus-within:outline-offset-2">
               <span className="min-w-[7rem] text-center">{picking ? "Opening files" : "Choose image"}</span>

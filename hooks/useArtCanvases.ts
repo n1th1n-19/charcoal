@@ -5,17 +5,18 @@ import type { Output } from "@/lib/exports";
 export type Bitmaps = { mono: ImageBitmap; color: ImageBitmap };
 
 // Owns the canvases that show the drawing, and keeps the mono one clipped to the seam.
-export function useArtCanvases(output: Output | null, bitmaps: RefObject<Bitmaps | null>) {
+export function useArtCanvases(output: Output | null, bitmaps: RefObject<Bitmaps | null>, shown: unknown) {
   const mono = useRef<HTMLCanvasElement>(null);
   const color = useRef<HTMLCanvasElement>(null);
   const finalArt = useRef<HTMLCanvasElement>(null);
   const finalBox = useRef<HTMLDivElement>(null);
 
   const clipToSeam = useCallback(() => {
-    const canvas = mono.current;
-    if (!canvas) return;
-    const r = canvas.getBoundingClientRect();
-    canvas.style.clipPath = `inset(0 ${Math.max(0, r.right - seamX())}px 0 0)`;
+    // Every mono art canvas shows only left of the seam, so its color twin shows through on the right.
+    document.querySelectorAll<HTMLCanvasElement>("canvas[data-seam-clip]").forEach((canvas) => {
+      const r = canvas.getBoundingClientRect();
+      canvas.style.clipPath = `inset(0 ${Math.max(0, r.right - seamX())}px 0 0)`;
+    });
   }, []);
 
   useEffect(() => {
@@ -28,7 +29,8 @@ export function useArtCanvases(output: Output | null, bitmaps: RefObject<Bitmaps
   useEffect(() => {
     const paint = () => {
       const pair = bitmaps.current;
-      if (!pair) return;
+      // The Easel is unmounted on the 3D route, so there may be nothing to paint into.
+      if (!pair || !mono.current || !color.current || !finalArt.current || !finalBox.current) return;
       for (const [ref, bitmap] of [[mono, pair.mono], [color, pair.color]] as const) {
         const c = ref.current!;
         c.width = Math.max(1, Math.round(c.clientWidth * devicePixelRatio));
@@ -53,10 +55,10 @@ export function useArtCanvases(output: Output | null, bitmaps: RefObject<Bitmaps
     };
     paint();
     const watch = new ResizeObserver(paint);
-    watch.observe(mono.current!);
-    watch.observe(finalBox.current!);
+    if (mono.current) watch.observe(mono.current);
+    if (finalBox.current) watch.observe(finalBox.current);
     return () => watch.disconnect();
-  }, [output, bitmaps, clipToSeam]);
+  }, [output, bitmaps, clipToSeam, shown]);
 
   return { mono, color, finalArt, finalBox, clipToSeam };
 }

@@ -148,10 +148,34 @@ function Drift({ chapter }: { chapter: number }) {
       <circle key={x} data-drift="rise" cx={x} cy={y} r="2.2" fill={RED} style={{ animationDelay: `${i * 1.2}s` }} />
     ));
   }
+  if (chapter === 4) return <circle data-drift="orbit" cx="74" cy="62" r="9" fill={RED} opacity="0.55" />;
   return null;
 }
 
-const SCENES = [Willow, Flames, Enso, Mountain];
+function Form() {
+  return (
+    <>
+      <Tones id="b" />
+      <Wash>
+        <ellipse data-wash cx="104" cy="186" rx="88" ry="12" fill="url(#b-mid)" />
+        <path data-wash d="M42 186C44 150 66 132 100 130C134 132 158 150 160 186Z" fill="url(#b-pale)" />
+        <ellipse data-wash cx="100" cy="78" rx="38" ry="48" fill="url(#b-pale)" />
+        <path data-wash d="M112 34C138 46 146 76 138 106C132 124 118 130 104 128C122 110 126 70 112 34Z" fill="url(#b-dark)" />
+        <path data-wash d="M118 132C140 138 154 156 158 184L124 184C128 166 126 148 118 132Z" fill="url(#b-mid)" />
+        <ellipse data-wash cx="126" cy="118" rx="14" ry="8" fill="url(#b-pool)" />
+      </Wash>
+      <Brush>
+        <g fill="none" stroke={INK} strokeLinecap="round">
+          <path data-ink d="M34 150C22 120 34 70 70 46" strokeWidth="2.6" opacity="0.7" />
+          <path data-ink d="M70 46L62 56M70 46L58 46" strokeWidth="2" opacity="0.7" />
+          <path data-ink d="M86 124C90 130 94 134 100 136" strokeWidth="1.6" opacity="0.55" />
+        </g>
+      </Brush>
+    </>
+  );
+}
+
+const SCENES = [Willow, Flames, Enso, Mountain, Form];
 
 export default function Sumi({ chapter }: { chapter: number }) {
   const Scene = SCENES[chapter];

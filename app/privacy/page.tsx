@@ -17,7 +17,7 @@ export default function Privacy() {
         <li>Your images and drawings never leave your device.</li>
         <li>There are no accounts, no login, no cookies and no advertising.</li>
         <li>The site counts visits and measures speed anonymously, using Vercel.</li>
-        <li>Background removal downloads a model from Hugging Face, only if you turn it on.</li>
+        <li>Background removal and 3D animation download models from Hugging Face, only when you use them.</li>
       </ul>
       <h2>Visit and speed measurement</h2>
       <p>
@@ -41,6 +41,12 @@ export default function Privacy() {
         address like any website. The model then runs on your device. Your image is not sent anywhere. Your browser keeps
         a copy of the model in this site's storage, so it downloads only once. Clearing this site's data removes it.
       </p>
+      <h2>3D animation</h2>
+      <p>
+        Making a 3D animation downloads a 27 MB depth model once from Hugging Face, which may log your IP address like any
+        website. It runs on your device, and your image is not sent anywhere. Your browser keeps a copy in this site's
+        storage, and clearing this site's data removes it.
+      </p>
       <h2>Hosting</h2>
       <p>
         The site is hosted by Vercel, which keeps standard server logs, such as IP addresses and page requests, to run and
@@ -50,8 +56,8 @@ export default function Privacy() {
       <p>Links to GitHub and other sites lead outside {NAME}. Those sites have their own privacy policies.</p>
       <h2>Your choices</h2>
       <p>
-        Nothing you make is stored, so there is nothing for us to delete. The only thing saved on your device is the
-        background model, if you used it, and clearing this site's data removes it. Visit counts are anonymous and cannot be traced
+        Nothing you make is stored, so there is nothing for us to delete. The only things saved on your device are the
+        background and depth models, if you used them, and clearing this site's data removes it. Visit counts are anonymous and cannot be traced
         back to you. A content or ad blocker will usually stop them from being sent at all.
       </p>
       <h2>Children</h2>

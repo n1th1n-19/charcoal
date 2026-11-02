@@ -23,7 +23,7 @@ export default function Terms() {
       <h2>Third-party services</h2>
       <p>
         {NAME} relies on Vercel for hosting, visit counts and speed measurement, and on Hugging Face to host the
-        background removal model. Their own terms apply to those services. The privacy policy explains what they receive.
+        background removal and depth models. Their own terms apply to those services. The privacy policy explains what they receive.
       </p>
       <h2>Acceptable use</h2>
       <p>
@@ -41,6 +41,7 @@ export default function Terms() {
       </p>
       <ul>
         <li>U-2-Net model, Apache-2.0</li>
+        <li>Depth Anything V2 Small model, Apache-2.0</li>
         <li>ONNX Runtime Web, MIT</li>
         <li>anime.js, MIT</li>
         <li>Next.js and React, MIT</li>

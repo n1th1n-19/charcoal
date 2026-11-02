@@ -1,10 +1,11 @@
 import { animate } from "animejs";
 import { Dispatch, RefObject, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import type { Bitmaps } from "@/hooks/useArtCanvases";
-import { MIN_STAGE_MS, ProgressState, READY, safePixels, SAMPLE, Source, STAGES, TooLarge } from "@/lib/config";
+import { MIN_STAGE_MS, ProgressState, READY, safePixels, SAMPLE, Source, stagesFor, TooLarge } from "@/lib/config";
+import type { Loop } from "@/lib/exports3d";
 import type { Output } from "@/lib/exports";
 import { reducedMotion } from "@/lib/motion";
-import type { Reply, Settings } from "@/lib/worker";
+import type { Reply, Route, Settings } from "@/lib/worker";
 
 type Options = {
   settings: Settings;
@@ -13,10 +14,14 @@ type Options = {
   goTo: (index: number) => void;
   bitmaps: RefObject<Bitmaps | null>;
   setOutput: (output: Output) => void;
+  route: Route;
+  setLoop: (loop: Loop) => void;
 };
 
 // Talks to the image worker: taking in images, requesting renders, and pacing the kiln.
-export function useEngine({ settings, setSettings, reset, goTo, bitmaps, setOutput }: Options) {
+export function useEngine({ settings, setSettings, reset, goTo, bitmaps, setOutput, route, setLoop }: Options) {
+  const routeRef = useRef(route);
+  routeRef.current = route;
   const worker = useRef<Worker | null>(null);
   const request = useRef(0);
   const burning = useRef({ on: false, done: false, queue: [] as string[], heat: { c: 20 } });
@@ -39,7 +44,7 @@ export function useEngine({ settings, setSettings, reset, goTo, bitmaps, setOutp
       const b = burning.current;
       if (m.type === "stage") {
         if (b.on) b.queue.push(m.name);
-        setProgress({ label: m.name, pct: Math.round(((STAGES.indexOf(m.name) + 1) / STAGES.length) * 100) });
+        setProgress({ label: m.name, pct: Math.round(((stagesFor(routeRef.current).indexOf(m.name) + 1) / stagesFor(routeRef.current).length) * 100) });
       } else if (m.type === "download") {
         if (m.total) setProgress({ label: "Downloading model", pct: Math.round((m.loaded / m.total) * 100) });
         setDownload(m.total ? `Downloading model, ${Math.round(m.loaded / 1e6)} of ${Math.round(m.total / 1e6)} MB` : "Downloading model");
@@ -48,6 +53,12 @@ export function useEngine({ settings, setSettings, reset, goTo, bitmaps, setOutp
         setProgress(READY);
         setError(m.message);
         if (m.model) setSettings((s) => ({ ...s, removeBg: false }));
+        b.done = true;
+      } else if (m.type === "frames") {
+        setDownload("");
+        if (m.id !== request.current) return;
+        setProgress(READY);
+        setLoop({ cols: m.cols, rows: m.rows, fps: m.fps, frames: m.frames });
         b.done = true;
       } else if (m.type === "done") {
         setDownload("");
@@ -71,9 +82,10 @@ export function useEngine({ settings, setSettings, reset, goTo, bitmaps, setOutp
       if (!b.on) return;
       const name = b.queue.shift();
       if (name) {
-        const i = STAGES.indexOf(name);
+        const stages = stagesFor(routeRef.current);
+        const i = stages.indexOf(name);
         setLit(i);
-        const target = 20 + (880 * (i + 1)) / STAGES.length;
+        const target = 20 + (880 * (i + 1)) / stages.length;
         if (reducedMotion()) setTemp(Math.round(target));
         else animate(b.heat, { c: target, duration: MIN_STAGE_MS, ease: "linear", onUpdate: () => setTemp(Math.round(b.heat.c)) });
       } else if (b.done) {
@@ -85,13 +97,13 @@ export function useEngine({ settings, setSettings, reset, goTo, bitmaps, setOutp
       clearInterval(play);
       w.terminate();
     };
-  }, [goTo, bitmaps, setOutput, setSettings]);
+  }, [goTo, bitmaps, setOutput, setSettings, setLoop]);
 
   useEffect(() => {
     if (!source || !worker.current) return;
     setProgress({ label: "Starting", pct: 0 });
-    worker.current.postMessage({ type: "render", id: ++request.current, settings });
-  }, [settings, source]);
+    worker.current.postMessage({ type: "render", id: ++request.current, settings, route });
+  }, [settings, source, route]);
 
   const burn = useCallback(() => {
     burning.current = { on: true, done: false, queue: [], heat: burning.current.heat };

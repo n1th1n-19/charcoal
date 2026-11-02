@@ -5,6 +5,7 @@ Charcoal includes or loads the following work. Each stays under its own license.
 | Component | Used for | License | Source |
 |---|---|---|---|
 | ONNX Runtime Web | Runs the background model | MIT, Copyright Microsoft Corporation | https://github.com/microsoft/onnxruntime |
+| Depth Anything V2 Small | Depth for 3D animation, downloaded from Hugging Face on request | Apache-2.0, by Lihe Yang and co-authors | https://github.com/DepthAnything/Depth-Anything-V2 |
 | U-2-Net | Background removal model, downloaded from Hugging Face on request | Apache-2.0, Copyright Xuebin Qin | https://github.com/xuebinqin/U-2-Net |
 | anime.js | Animation | MIT, Copyright Julian Garnier | https://github.com/juliangarnier/anime |
 | Next.js | Framework | MIT, Copyright Vercel, Inc. | https://github.com/vercel/next.js |
